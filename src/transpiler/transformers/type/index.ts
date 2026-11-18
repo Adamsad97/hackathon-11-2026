@@ -13,6 +13,7 @@ import { arrayTypeTransformer } from "./array";
 import { tupleTypeTransformer } from "./tuple";
 import { intersectionTypeTransformer } from "./intersection";
 import { functionTypeTransformer } from "./function";
+import { nullishTypeTransformer } from "./nullish";
 
 export * from "./checkerType";
 export * from "./union";
@@ -31,5 +32,6 @@ export const typeTransformers = DCommon.memo(
 		tupleTypeTransformer,
 		intersectionTypeTransformer,
 		functionTypeTransformer,
+		nullishTypeTransformer,
 	],
 );

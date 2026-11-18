@@ -187,6 +187,103 @@ function haveSameMembers(first: UnionRepresentation, second: UnionRepresentation
 		&& DArray.every(first.members, (member, { index }) => member.key === second.members[index]?.key);
 }
 
+// Conversion entre deux unions étiquetées (rétrécissement `Left | Error | string` → `Left | Error`,
+// ou retour d'une sous-union dans l'union déclarée) : chaque membre source est placé dans le membre
+// cible de même représentation, au moyen d'une fonction Go appelée immédiatement.
+// Avec `onlyReachable`, les membres absents de la cible sont ignorés : le checker garantit qu'ils
+// ne peuvent pas se présenter à cet endroit (rétrécissement par un garde de type).
+interface ReachableMember {
+	readonly sourceIndex: number;
+	readonly targetIndex: number;
+}
+
+function createUnionConversion(
+	expression: GoAST.Expression,
+	source: UnionRepresentation,
+	target: UnionRepresentation,
+	onlyReachable: boolean,
+) {
+	const value = GoAST.createIdentifier("value");
+
+	const mapped = DCommon.pipe(
+		source.members,
+		DArray.map((member, { index }) => ({
+			sourceIndex: index,
+			targetIndex: DArray.findIndex(target.members, (targetMember) => targetMember.key === member.key),
+		})),
+	);
+
+	if (!onlyReachable && DArray.some(mapped, ({ targetIndex }) => targetIndex === undefined)) {
+		return DEither.none();
+	}
+
+	const reachable = DArray.filter(
+		mapped,
+		(entry): entry is ReachableMember => entry.targetIndex !== undefined,
+	);
+
+	if (!target.unionReference || !source.unionReference || DArray.lengthEqual(reachable, 0)) {
+		return DEither.none();
+	}
+
+	const targetReference = target.unionReference;
+
+	const placed = (sourceIndex: number, targetIndex: number) => GoAST.createReturnStatement({
+		values: [
+			GoAST.createStructLiteral({
+				typeReference: targetReference,
+				elements: [
+					GoAST.createKeyedElement({
+						key: unionTagIdentifier,
+						value: GoAST.createIntegerLiteral({ value: BigInt(targetIndex) }),
+					}),
+					GoAST.createKeyedElement({
+						key: createUnionValueIdentifier(targetIndex),
+						value: GoAST.createSelectorExpression({
+							target: value,
+							identifier: createUnionValueIdentifier(sourceIndex),
+						}),
+					}),
+				],
+			}),
+		],
+	});
+
+	// Le dernier membre atteignable n'a pas de test : la fonction se termine toujours par un `return`.
+	const statements: readonly GoAST.Statement[] = DArray.map(
+		reachable,
+		({ sourceIndex, targetIndex }, { index }) => index === reachable.length - 1
+			? placed(sourceIndex, targetIndex)
+			: GoAST.createIfStatement({
+				condition: GoAST.createBinaryExpression({
+					operator: "==",
+					left: GoAST.createSelectorExpression({
+						target: value,
+						identifier: unionTagIdentifier,
+					}),
+					right: GoAST.createIntegerLiteral({ value: BigInt(sourceIndex) }),
+				}),
+				body: GoAST.createBlockStatement({ statements: [placed(sourceIndex, targetIndex)] }),
+			}),
+	);
+
+	return DEither.some<GoAST.Expression>(
+		GoAST.createCallExpression({
+			callee: GoAST.createFunctionLiteral({
+				arguments: [
+					GoAST.createFunctionArgument({
+						identifier: value,
+						type: source.unionReference,
+					}),
+				],
+				returnTypes: [targetReference],
+				body: GoAST.createBlockStatement({ statements }),
+			}),
+			arguments: [expression],
+		}),
+	);
+}
+
 export function createUnionTagTest(
 	expression: GoAST.Expression,
 	union: UnionRepresentation,
@@ -265,9 +362,20 @@ export async function convertToCheckerType(params: ConvertCheckerTypeParams) {
 	const sourceRepresentation = DEither.unwrapRight(sourceUnion);
 
 	if (sourceRepresentation.unionReference) {
-		return haveSameMembers(sourceRepresentation, DEither.unwrapRight(targetUnion))
-			? DEither.success(expression)
-			: context.error(location, "union-to-union-conversion-not-supported");
+		if (haveSameMembers(sourceRepresentation, DEither.unwrapRight(targetUnion))) {
+			return DEither.success(expression);
+		}
+
+		const converted = createUnionConversion(
+			expression,
+			sourceRepresentation,
+			DEither.unwrapRight(targetUnion),
+			false,
+		);
+
+		return DEither.isLeft(converted)
+			? context.error(location, "union-member-not-found")
+			: DEither.success(DEither.unwrapRight(converted));
 	}
 
 	const index = DArray.findIndex(
@@ -334,9 +442,15 @@ export async function narrowToCheckerType(params: NarrowCheckerTypeParams) {
 	const narrowedRepresentation = DEither.unwrapRight(narrowedUnion);
 
 	if (narrowedRepresentation.unionReference) {
-		return haveSameMembers(declaredRepresentation, narrowedRepresentation)
-			? DEither.success(expression)
-			: context.error(location, "union-narrowing-to-sub-union-not-supported");
+		if (haveSameMembers(declaredRepresentation, narrowedRepresentation)) {
+			return DEither.success(expression);
+		}
+
+		const converted = createUnionConversion(expression, declaredRepresentation, narrowedRepresentation, true);
+
+		return DEither.isLeft(converted)
+			? context.error(location, "union-member-not-found")
+			: DEither.success(DEither.unwrapRight(converted));
 	}
 
 	const index = DArray.findIndex(
