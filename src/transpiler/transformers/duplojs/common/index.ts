@@ -4,6 +4,7 @@ import * as DPattern from "@duplojs/lang/pattern";
 import { createTransformer, type Transformer } from "@transformer";
 import type { GoAST } from "@go";
 import { TsAST } from "@typescript";
+import { pipeExpressionHandler } from "./pipe";
 import { printExpressionHandler } from "./print";
 
 export const duploJSCommonExpressionTransformer: Transformer<GoAST.Expression> = createTransformer(
@@ -33,6 +34,10 @@ export const duploJSCommonExpressionTransformer: Transformer<GoAST.Expression> =
 			DPattern.match(
 				DCommon.equal("print"),
 				() => printExpressionHandler(node, context),
+			),
+			DPattern.match(
+				DCommon.equal("pipe"),
+				() => pipeExpressionHandler(node, context),
 			),
 			DPattern.otherwise(
 				() => context.notSupport(),
