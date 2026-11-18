@@ -17,7 +17,13 @@ import {
 	isConstantTest,
 	placeValue,
 	resolveEitherInput,
+	type EitherMember,
 } from "../members";
+
+interface OtherValue {
+	readonly member: EitherMember;
+	readonly value: GoAST.Expression;
+}
 
 // `whenIsRight(input, theFunction)` : la fonction n'est appliquée qu'à la valeur d'un `Right` ;
 // toute autre variante est renvoyée inchangée. Les variantes sont classées à la compilation et
@@ -132,22 +138,34 @@ export async function whenIsRightExpressionHandler(
 	}
 
 	// Les autres variantes sont renvoyées telles quelles, chacune dans son membre de la sortie.
-	const otherValues: GoAST.Expression[] = [];
+	const otherValues = await DCommon.asyncPipe(
+		otherMembers,
+		DArray.map(
+			async(member) => DEither.rightPipe(
+				await placeValue({
+					expression: getMemberValue(input, either, member),
+					goType: member.goType,
+					target: outputType,
+					location: node,
+					context,
+				}),
+				(value) => DEither.success({
+					member,
+					value,
+				}),
+			),
+		),
+		DCommon.promiseAll,
+		DArray.reduce(
+			DArray.reduceFrom<readonly OtherValue[]>([]),
+			({ element, lastValue, next, exit }) => DEither.isLeft(element)
+				? exit(element)
+				: next(DArray.push(lastValue, DEither.unwrapRight(element))),
+		),
+	);
 
-	for (const member of otherMembers) {
-		const value = await placeValue({
-			expression: getMemberValue(input, either, member),
-			goType: member.goType,
-			target: outputType,
-			location: node,
-			context,
-		});
-
-		if (DEither.isLeft(value)) {
-			return value;
-		}
-
-		otherValues.push(DEither.unwrapRight(value));
+	if (DEither.isLeft(otherValues)) {
+		return otherValues;
 	}
 
 	const outputGoType = await transformCheckerType(outputType, node, context);
@@ -160,23 +178,19 @@ export async function whenIsRightExpressionHandler(
 		const block = (value: GoAST.Expression) => GoAST.createBlockStatement({ statements: [emit(value)] });
 
 		// Chaîne `if / else if / else` sur les variantes non `Right`, la dernière sans test.
-		let otherBranch: GoAST.BlockStatement | GoAST.IfStatement | undefined = undefined;
-
-		for (const [index, member] of [...otherMembers.entries()].reverse()) {
-			const value = otherValues[index];
-
-			if (!value) {
-				continue;
-			}
-
-			otherBranch = otherBranch
-				? GoAST.createIfStatement({
-					condition: createMembersTest(input, either, [member]),
-					body: block(value),
-					elseBranch: otherBranch,
-				})
-				: block(value);
-		}
+		const otherBranch = DArray.reduceRight(
+			otherValues,
+			DArray.reduceFrom<GoAST.BlockStatement | GoAST.IfStatement | undefined>(undefined),
+			({ element: { member, value }, lastValue, next }) => next(
+				lastValue
+					? GoAST.createIfStatement({
+						condition: createMembersTest(input, either, [member]),
+						body: block(value),
+						elseBranch: lastValue,
+					})
+					: block(value),
+			),
+		);
 
 		const right = rightValue && DEither.unwrapRight(rightValue);
 

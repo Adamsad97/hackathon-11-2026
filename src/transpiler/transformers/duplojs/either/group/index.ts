@@ -99,29 +99,39 @@ export async function groupExpressionHandler(
 	const values = context.generateIdentifier();
 	const valuesType = GoAST.createSliceType({ elementType: valueGoType });
 
-	const leftReturns: GoAST.Statement[] = [];
-
-	for (const member of leftMembers) {
-		const returned = await placeValue({
-			expression: getMemberValue(element, either, member),
-			goType: member.goType,
-			target: outputType,
-			location: node,
-			context,
-		});
-
-		if (DEither.isLeft(returned)) {
-			return returned;
-		}
-
-		leftReturns.push(
-			GoAST.createIfStatement({
-				condition: createMembersTest(element, either, [member]),
-				body: GoAST.createBlockStatement({
-					statements: [GoAST.createReturnStatement({ values: [DEither.unwrapRight(returned)] })],
+	// Un `return` anticipé par variante d'échec : l'échec devient le résultat de la transaction.
+	const leftReturns = await DCommon.asyncPipe(
+		leftMembers,
+		DArray.map(
+			async(member) => DEither.rightPipe(
+				await placeValue({
+					expression: getMemberValue(element, either, member),
+					goType: member.goType,
+					target: outputType,
+					location: node,
+					context,
 				}),
-			}),
-		);
+				(returned): DEither.Success<GoAST.Statement> => DEither.success(
+					GoAST.createIfStatement({
+						condition: createMembersTest(element, either, [member]),
+						body: GoAST.createBlockStatement({
+							statements: [GoAST.createReturnStatement({ values: [returned] })],
+						}),
+					}),
+				),
+			),
+		),
+		DCommon.promiseAll,
+		DArray.reduce(
+			DArray.reduceFrom<readonly GoAST.Statement[]>([]),
+			({ element: statement, lastValue, next, exit }) => DEither.isLeft(statement)
+				? exit(statement)
+				: next(DArray.push(lastValue, DEither.unwrapRight(statement))),
+		),
+	);
+
+	if (DEither.isLeft(leftReturns)) {
+		return leftReturns;
 	}
 
 	const successGoType = GoAST.createGenericTypeReference({

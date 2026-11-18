@@ -6,6 +6,11 @@ import * as DEither from "@duplojs/lang/either";
 import { type BuildContext } from "../../../../context/build";
 import { evaluateAllToVariables } from "../../../expression/evaluate";
 
+interface PipeSteps {
+	readonly statements: readonly GoAST.Statement[];
+	readonly current: GoAST.Expression;
+}
+
 // `pipe(input, f1, f2…)` : l'entrée et les fonctions sont évaluées dans l'ordre des arguments,
 // puis chaque fonction reçoit le résultat de la précédente. Chaque résultat intermédiaire est
 // stocké, ce qui conserve l'ordre des étapes sans imbriquer les appels.
@@ -35,22 +40,29 @@ export async function pipeExpressionHandler(
 		return context.error(node, "pipe-expects-input-and-functions");
 	}
 
-	const steps: GoAST.Statement[] = [];
-	let current: GoAST.Expression = input;
+	// Toutes les étapes sauf la dernière, dont l'appel est le résultat de l'expression :
+	// chaque résultat intermédiaire est stocké et transmis à l'étape suivante.
+	const { statements: steps, current } = DArray.reduce(
+		DArray.slice(functions, 0, -1),
+		DArray.reduceFrom<PipeSteps>({
+			statements: [],
+			current: input,
+		}),
+		({ element, lastValue, next }) => {
+			const step = GoAST.createShortVariableDeclarationStatement({
+				identifier: context.generateIdentifier(),
+				initializer: GoAST.createCallExpression({
+					callee: element,
+					arguments: [lastValue.current],
+				}),
+			});
 
-	// Toutes les étapes sauf la dernière, dont l'appel est le résultat de l'expression.
-	for (const theFunction of functions.slice(0, -1)) {
-		const step = GoAST.createShortVariableDeclarationStatement({
-			identifier: context.generateIdentifier(),
-			initializer: GoAST.createCallExpression({
-				callee: theFunction,
-				arguments: [current],
-			}),
-		});
-
-		steps.push(step);
-		current = step.identifier;
-	}
+			return next({
+				statements: DArray.push(lastValue.statements, step),
+				current: step.identifier,
+			});
+		},
+	);
 
 	return context.success({
 		before: DArray.concat(before, steps),

@@ -5,6 +5,7 @@ import type { Type } from "typescript/async";
 import * as DArray from "@duplojs/lang/array";
 import * as DCommon from "@duplojs/lang/common";
 import * as DEither from "@duplojs/lang/either";
+import * as DGenerator from "@duplojs/lang/generator";
 import { type BuildContext } from "../../../../context/build";
 import { evaluateAllToVariables } from "../../../expression/evaluate";
 import { transformCheckerType, type GoType } from "../../../type";
@@ -17,11 +18,17 @@ import {
 	getMemberValue,
 	placeValue,
 	resolveEitherInput,
+	type EitherMember,
 } from "../members";
 
 interface PipeStep {
 	readonly value: GoAST.Identifier;
 	readonly type: Type;
+}
+
+interface PipeState {
+	readonly current: PipeStep;
+	readonly body: readonly GoAST.Statement[];
 }
 
 interface StepStatements {
@@ -63,44 +70,56 @@ async function buildStepStatements(params: BuildStepParams) {
 	const isOutputRepresentation = GoPrinter.renderNode(either.union.type) === GoPrinter.renderNode(outputGoType);
 
 	// Avec la représentation du résultat, un seul test couvre tous les échecs, retournés tels quels.
-	const hasLeftMembers = !DArray.lengthEqual(leftMembers, 0);
-	const sharedGroups = hasLeftMembers ? [leftMembers] : [];
-	const returnedGroups = isOutputRepresentation
-		? sharedGroups
+	// Sinon chaque échec est placé dans son membre de l'union du résultat.
+	const returnedGroups: readonly (readonly EitherMember[])[] = isOutputRepresentation
+		? DArray.filter([leftMembers], (members) => !DArray.lengthEqual(members, 0))
 		: DArray.map(leftMembers, (member) => [member]);
 
-	const statements: GoAST.Statement[] = [];
+	const statements = await DCommon.asyncPipe(
+		returnedGroups,
+		DArray.map(
+			async(members) => {
+				const [member] = members;
 
-	for (const members of returnedGroups) {
-		const [member] = members;
+				if (!member) {
+					return context.error(location, "right-pipe-left-not-resolved");
+				}
 
-		if (!member) {
-			continue;
-		}
+				const returned = isOutputRepresentation
+					? DEither.success<GoAST.Expression>(step.value)
+					: await placeValue({
+						expression: getMemberValue(step.value, either, member),
+						goType: member.goType,
+						target: outputType,
+						location,
+						context,
+					});
 
-		const returned = isOutputRepresentation
-			? DEither.success<GoAST.Expression>(step.value)
-			: await placeValue({
-				expression: getMemberValue(step.value, either, member),
-				goType: member.goType,
-				target: outputType,
-				location,
-				context,
-			});
+				// Toujours un `if`, même si le test est connu : un `return` nu rendrait la suite inatteignable.
+				return DEither.rightPipe(
+					returned,
+					(value): DEither.Success<GoAST.Statement> => DEither.success(
+						GoAST.createIfStatement({
+							condition: createMembersTest(step.value, either, members),
+							body: GoAST.createBlockStatement({
+								statements: [GoAST.createReturnStatement({ values: [value] })],
+							}),
+						}),
+					),
+				);
+			},
+		),
+		DCommon.promiseAll,
+		DArray.reduce(
+			DArray.reduceFrom<readonly GoAST.Statement[]>([]),
+			({ element, lastValue, next, exit }) => DEither.isLeft(element)
+				? exit(element)
+				: next(DArray.push(lastValue, DEither.unwrapRight(element))),
+		),
+	);
 
-		if (DEither.isLeft(returned)) {
-			return returned;
-		}
-
-		// Toujours un `if`, même si le test est connu : un `return` nu rendrait la suite inatteignable.
-		statements.push(
-			GoAST.createIfStatement({
-				condition: createMembersTest(step.value, either, members),
-				body: GoAST.createBlockStatement({
-					statements: [GoAST.createReturnStatement({ values: [DEither.unwrapRight(returned)] })],
-				}),
-			}),
-		);
+	if (DEither.isLeft(statements)) {
+		return statements;
 	}
 
 	return DEither.success<StepStatements>({
@@ -165,46 +184,61 @@ export async function rightPipeExpressionHandler(
 		DCommon.promiseAll,
 	);
 
-	let current: PipeStep = {
-		value: input,
-		type: await typeChecker.getTypeAtLocation(inputNode),
-	};
-	let body: readonly GoAST.Statement[] = [];
+	// Chaque étape : test d'échec sur la valeur courante, puis appel de la fonction suivante sur la
+	// valeur du `Right`. Le résultat de l'appel devient la valeur courante de l'étape suivante.
+	const pipeline = await DGenerator.asyncReduce(
+		DArray.map(pipes, (pipe, { index }) => ({
+			pipe,
+			returnType: pipeReturnTypes[index],
+		})),
+		DGenerator.reduceFrom<PipeState>({
+			current: {
+				value: input,
+				type: await typeChecker.getTypeAtLocation(inputNode),
+			},
+			body: [],
+		}),
+		async({ item: { pipe, returnType }, lastValue, next, exit }) => {
+			const step = await buildStepStatements({
+				step: lastValue.current,
+				outputType,
+				outputGoType,
+				location: node,
+				context,
+			});
 
-	for (const [index, pipe] of pipes.entries()) {
-		const step = await buildStepStatements({
-			step: current,
-			outputType,
-			outputGoType,
-			location: node,
-			context,
-		});
+			if (DEither.isLeft(step)) {
+				return exit(step);
+			}
 
-		if (DEither.isLeft(step)) {
-			return step;
-		}
+			if (!returnType || DEither.isLeft(returnType)) {
+				return exit(returnType ?? context.error(node, "right-pipe-function-not-resolved"));
+			}
 
-		const returnType = pipeReturnTypes[index];
+			const { statements, forwarded } = DEither.unwrapRight(step);
+			const call = GoAST.createShortVariableDeclarationStatement({
+				identifier: context.generateIdentifier(),
+				initializer: GoAST.createCallExpression({
+					callee: pipe,
+					arguments: [forwarded],
+				}),
+			});
 
-		if (!returnType || DEither.isLeft(returnType)) {
-			return returnType ?? context.error(node, "right-pipe-function-not-resolved");
-		}
+			return next({
+				current: {
+					value: call.identifier,
+					type: DEither.unwrapRight(returnType),
+				},
+				body: DArray.concat(lastValue.body, statements, [call]),
+			});
+		},
+	);
 
-		const { statements, forwarded } = DEither.unwrapRight(step);
-		const next = GoAST.createShortVariableDeclarationStatement({
-			identifier: context.generateIdentifier(),
-			initializer: GoAST.createCallExpression({
-				callee: pipe,
-				arguments: [forwarded],
-			}),
-		});
-
-		body = DArray.concat(body, statements, [next]);
-		current = {
-			value: next.identifier,
-			type: DEither.unwrapRight(returnType),
-		};
+	if (DEither.isLeft(pipeline)) {
+		return pipeline;
 	}
+
+	const { current, body } = pipeline;
 
 	const lastStep = await buildStepStatements({
 		step: current,

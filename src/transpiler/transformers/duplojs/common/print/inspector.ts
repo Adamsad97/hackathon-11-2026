@@ -11,6 +11,8 @@ import { createUnionTypeIdentifier, createUnionValueIdentifier, unionTagIdentifi
 import { successTypeIdentifier } from "../../either/success/sharedDependency";
 import { failTypeIdentifier } from "../../either/fail/sharedDependency";
 import { leftTypeIdentifier } from "../../either/left/sharedDependency";
+import { rightTypeIdentifier } from "../../either/right/sharedDependency";
+import { errorTypeIdentifier } from "../../either/error/sharedDependency";
 import {
 	inspectDependency,
 	inspectEntriesIdentifier,
@@ -216,6 +218,84 @@ const leftInspectorDependency = DCommon.memo(() => {
 		],
 	});
 });
+
+// Inspecteur d'une variante Either générique sur sa valeur : les clés `kind` vides avant et
+// après l'information et la valeur, dans l'ordre où DuploJS les crée (et où Node les affiche).
+function createEitherInspectorDependency(
+	inspectorIdentifier: GoAST.Identifier,
+	typeIdentifier: GoAST.Identifier,
+	kindsBefore: readonly string[],
+	kindsAfter: readonly string[],
+) {
+	const generic = identifier("T");
+	const inspectValue = identifier("inspectValue");
+	const value = identifier("value");
+	const indentation = identifier("indentation");
+	const eitherType = GoAST.createGenericTypeReference({
+		typeReference: typeIdentifier,
+		typeArguments: DCommon.cast([generic]),
+	});
+	const kindEntry = (kind: string) => concatenate(eitherEntry(kind), stringLiteral("null"));
+
+	return createSharedDependency({
+		imports: [],
+		init: [],
+		declarations: [
+			GoAST.createFunctionDeclaration({
+				identifier: inspectorIdentifier,
+				generic: [
+					GoAST.createTypeParameter({
+						identifier: generic,
+						constraint: GoAST.builtinTypeReferences.any,
+					}),
+				],
+				arguments: [argument(inspectValue, inspectorType(generic))],
+				returnTypes: [inspectorType(eitherType)],
+				body: block(
+					returnValue(
+						GoAST.createFunctionLiteral({
+							arguments: [
+								argument(value, eitherType),
+								argument(indentation, GoAST.builtinTypeReferences.int),
+							],
+							returnTypes: [GoAST.builtinTypeReferences.string],
+							body: block(
+								returnValue(
+									createEitherObject(
+										[
+											...DArray.map(kindsBefore, kindEntry),
+											concatenate(
+												eitherEntry("information"),
+												call(inspectStringIdentifier, member(value, "Information"), nested(indentation)),
+											),
+											concatenate(
+												eitherEntry("value"),
+												call(inspectValue, member(value, "Value"), nested(indentation)),
+											),
+											...DArray.map(kindsAfter, kindEntry),
+										],
+										indentation,
+									),
+								),
+							),
+						}),
+					),
+				),
+			}),
+		],
+	});
+}
+
+const inspectEitherRightIdentifier = GoAST.createIdentifier("InspectEitherRight");
+const inspectEitherErrorIdentifier = GoAST.createIdentifier("InspectEitherError");
+
+const rightInspectorDependency = DCommon.memo(
+	() => createEitherInspectorDependency(inspectEitherRightIdentifier, rightTypeIdentifier, ["right"], []),
+);
+
+const errorInspectorDependency = DCommon.memo(
+	() => createEitherInspectorDependency(inspectEitherErrorIdentifier, errorTypeIdentifier, ["left"], ["error"]),
+);
 
 // Un tableau s'affiche comme dans Node : `[ 'a', 'b' ]` sur une ligne si les entrées tiennent,
 // sinon une entrée par ligne. Chaque élément est affiché par l'inspecteur de son type.
@@ -481,6 +561,22 @@ export function createInspector(
 
 		return DEither.success<GoAST.Expression>(
 			call(shared(inspectEitherSuccessIdentifier), ...argumentInspectors),
+		);
+	}
+
+	if (genericName === rightTypeIdentifier.value) {
+		context.registerSharedDependency(rightInspectorDependency.value);
+
+		return DEither.success<GoAST.Expression>(
+			call(shared(inspectEitherRightIdentifier), ...argumentInspectors),
+		);
+	}
+
+	if (genericName === errorTypeIdentifier.value) {
+		context.registerSharedDependency(errorInspectorDependency.value);
+
+		return DEither.success<GoAST.Expression>(
+			call(shared(inspectEitherErrorIdentifier), ...argumentInspectors),
 		);
 	}
 

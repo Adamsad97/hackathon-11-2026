@@ -11,6 +11,8 @@ import { createUnionValueIdentifier, unionTagIdentifier } from "../../type/union
 import { successTypeIdentifier } from "./success/sharedDependency";
 import { failTypeIdentifier } from "./fail/sharedDependency";
 import { leftTypeIdentifier } from "./left/sharedDependency";
+import { rightTypeIdentifier } from "./right/sharedDependency";
+import { errorTypeIdentifier } from "./error/sharedDependency";
 
 // Outils communs aux fonctions DuploJS qui aiguillent un résultat selon sa variante
 // (`rightPipe`, `group`, `whenIsRightOtherwise`). Le classement d'une variante est fait à la
@@ -48,11 +50,11 @@ function getSharedTypeName(type: GoType) {
 export function getEitherSide(type: GoType): EitherSide {
 	const name = getSharedTypeName(type);
 
-	if (name === leftTypeIdentifier.value || name === failTypeIdentifier.value) {
+	if (name === leftTypeIdentifier.value || name === failTypeIdentifier.value || name === errorTypeIdentifier.value) {
 		return "left";
 	}
 
-	if (name === successTypeIdentifier.value) {
+	if (name === successTypeIdentifier.value || name === rightTypeIdentifier.value) {
 		return "right";
 	}
 

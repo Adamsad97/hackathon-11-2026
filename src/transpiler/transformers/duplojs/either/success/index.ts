@@ -8,16 +8,36 @@ import * as DModeling from "@duplojs/lang/modeling";
 import { type BuildContext } from "../../../../context/build";
 import { expressionTransformers } from "../../../expression";
 import { transformCheckerType, typeTransformers } from "../../../type";
+import { createFunctionValue } from "../../functionValue";
 import { eitherSuccessDependency, successFunctionIdentifier, successTypeIdentifier } from "./sharedDependency";
 
 export async function successExpressionHandler(
 	node: TsAST.Node,
 	context: BuildContext,
 ): Promise<ReturnType<Transformer<GoAST.Expression>["transformer"]>> {
-	// Go ne permet pas de manipuler une fonction générique sans l'instancier :
-	// seul l'appel, dont le checker connaît le type de retour, est traduit.
+	// Go ne permet pas de manipuler une fonction générique sans l'instancier : passée en valeur
+	// (`pipe(value, DEither.success)`), elle est instanciée selon le type attendu à cet endroit.
 	if (!TsAST.isCallExpression(node)) {
-		return context.error(node, "success-reference-without-call-not-supported");
+		return createFunctionValue(
+			node,
+			context,
+			([parameter]) => Promise.resolve(
+				parameter
+					? DEither.success({
+						result: GoAST.createCallExpression({
+							callee: GoAST.createInstantiationExpression({
+								target: GoAST.createSelectorExpression({
+									target: context.registerSharedDependency(eitherSuccessDependency.value),
+									identifier: successFunctionIdentifier,
+								}),
+								typeArguments: DCommon.cast([parameter.goType]),
+							}),
+							arguments: [parameter.identifier],
+						}),
+					})
+					: context.error(node, "success-expects-one-argument"),
+			),
+		);
 	}
 
 	const [valueNode] = node.arguments;

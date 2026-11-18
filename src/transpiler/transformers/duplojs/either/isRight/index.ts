@@ -9,10 +9,10 @@ import { type BuildContext } from "../../../../context/build";
 import { expressionTransformers } from "../../../expression";
 import { createUnionTagTest, resolveCheckerUnion } from "../../../type";
 
-// `isRight` est un garde de type (`input is Extract<Input, Right>`). Le checker fournit le type
+// `isRight` et `isLeft` sont des gardes de type (`input is Extract<Input, Right>`). Le checker fournit le type
 // retenu par ce prédicat : chaque membre de l'union est classé à la compilation, et le test
 // à l'exécution se réduit à une comparaison d'étiquette, sans inspection de la valeur.
-export async function isRightExpressionHandler(
+export async function typeGuardExpressionHandler(
 	node: TsAST.Node,
 	context: BuildContext,
 ): Promise<ReturnType<Transformer<GoAST.Expression>["transformer"]>> {
