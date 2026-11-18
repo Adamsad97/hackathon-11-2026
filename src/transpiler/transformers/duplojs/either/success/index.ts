@@ -18,11 +18,42 @@ export async function successExpressionHandler(
 	}
 
 	const packageName = context.registerSharedDependency(eitherSuccessDependency.value);
+	const target = GoAST.createSelectorExpression({
+		target: packageName,
+		identifier: successFunctionIdentifier,
+	});
+	const argument = TsAST.isCallExpression(node.parent)
+		? DArray.first(node.parent.arguments)
+		: undefined;
+
+	if (!argument || TsAST.isSpreadElement(argument)) {
+		return context.success({
+			result: target,
+		});
+	}
+
+	const typeNode = await context.transpilation.typeChecker.typeToTypeNode(
+		await context.transpilation.typeChecker.getTypeAtLocation(argument),
+		argument,
+	) ?? TsAST.factory.createKeywordTypeNode(TsAST.SyntaxKind.AnyKeyword);
+
+	const valueType = await DCommon.asyncPipe(
+		context.transform(typeNode, typeTransformers.value),
+		DEither.unwrapRight,
+	);
+
+	if (DEither.isLeft(valueType)) {
+		return valueType;
+	}
+
+	if (!DArray.lengthEqual(valueType.before, 0)) {
+		return context.error(typeNode, "un-support-before-on-success-type");
+	}
 
 	return context.success({
-		result: GoAST.createSelectorExpression({
-			target: packageName,
-			identifier: successFunctionIdentifier,
+		result: GoAST.createInstantiationExpression({
+			target,
+			typeArguments: DCommon.cast([valueType.result]),
 		}),
 	});
 }

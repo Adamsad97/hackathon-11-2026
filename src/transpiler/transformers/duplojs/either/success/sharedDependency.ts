@@ -4,6 +4,7 @@ import { createSharedDependency } from "@transformer";
 
 export const successFunctionIdentifier = GoAST.createIdentifier("EitherSuccessOf");
 export const successTypeIdentifier = GoAST.createIdentifier("EitherSuccess");
+export const eitherRightValueIdentifier = GoAST.createIdentifier("eitherRightValue");
 
 export const eitherSuccessDependency = DCommon.memo(() => {
 	const generic = GoAST.createIdentifier("T");
@@ -28,7 +29,7 @@ export const eitherSuccessDependency = DCommon.memo(() => {
 		imports: [],
 		init: [],
 		declarations: [
-			GoAST.createTypeAlias({
+			GoAST.createTypeDefinition({
 				identifier: successTypeIdentifier,
 				generic: [successTypeParameter],
 				type: GoAST.createStructType({
@@ -52,6 +53,28 @@ export const eitherSuccessDependency = DCommon.memo(() => {
 							identifier: GoAST.createIdentifier("Success"),
 							typeReference: nullType,
 							tag: "json:\"@duplojs/lang/kind/@DuplojsLangEither/success\"",
+						}),
+					],
+				}),
+			}),
+			GoAST.createMethodDeclaration({
+				identifier: eitherRightValueIdentifier,
+				receiver: [
+					GoAST.createIdentifier("value"),
+					successTypeReference,
+				],
+				generic: [],
+				arguments: [],
+				returnTypes: [GoAST.builtinTypeReferences.any],
+				body: GoAST.createBlockStatement({
+					statements: [
+						GoAST.createReturnStatement({
+							values: [
+								GoAST.createSelectorExpression({
+									target: GoAST.createIdentifier("value"),
+									identifier: GoAST.createIdentifier("Value"),
+								}),
+							],
 						}),
 					],
 				}),

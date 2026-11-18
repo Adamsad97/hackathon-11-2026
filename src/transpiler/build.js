@@ -1,0 +1,100 @@
+import * as DArray from "@duplojs/lang/array";
+import * as DCommon from "@duplojs/lang/common";
+import * as DEither from "@duplojs/lang/either";
+import * as DGenerator from "@duplojs/lang/generator";
+import * as DPath from "@duplojs/lang/path";
+import { GoAST, GoPrinter } from "@go";
+import { createTranspilationContext } from "./context/transpilation";
+import { transformSourceFile } from "./transformSourceFile";
+import { createFile } from "./createFile";
+import { sharedDependencyPackageName } from "@transformer";
+import { createSourcePackageLayout, goModuleContent } from "./sourcePackage";
+import { defaultSharedDependencies } from "./sharedDependency/defaults";
+export function build(typescriptInstance, input) {
+    const context = createTranspilationContext({
+        typeChecker: typescriptInstance.project.checker,
+        projectWorkDirectory: typescriptInstance.projectWorkDirectory,
+    });
+    return DGenerator.asyncLoopAccumulator(DGenerator.loopAccumulatorFrom({
+        pending: [input],
+        built: new Set(),
+    }), async ({ accumulator, next, exit }) => {
+        const path = DArray.first(accumulator.pending);
+        if (path === undefined) {
+            const entryPackage = DCommon.pipe(DEither.rightPipe(DPath.createAbsolute(typescriptInstance.api.getCanonicalFileName(input)), (sourcePath) => createSourcePackageLayout(typescriptInstance.projectWorkDirectory, sourcePath)), DEither.unwrapRight);
+            if (DEither.isLeft(entryPackage)) {
+                return exit(entryPackage);
+            }
+            const mainFile = DEither.right("build-main-file", {
+                content: GoPrinter.printGoFile(GoAST.createGoFile({
+                    packageName: GoAST.createIdentifier("main"),
+                    imports: [
+                        GoAST.createImportDeclaration({
+                            path: entryPackage.importPath,
+                            alias: GoAST.createIdentifier("_"),
+                        }),
+                    ],
+                    declarations: [
+                        GoAST.createFunctionDeclaration({
+                            identifier: GoAST.createIdentifier("main"),
+                            generic: [],
+                            arguments: [],
+                            returnTypes: [],
+                            body: GoAST.createBlockStatement({ statements: [] }),
+                        }),
+                    ],
+                })),
+                outputPath: DPath.declarePath("main.go"),
+            });
+            const moduleFile = DEither.right("build-go-module-file", {
+                content: goModuleContent,
+                outputPath: DPath.declarePath("go.mod"),
+            });
+            if (context.sharedDependencies.size === 0) {
+                return exit(mainFile, moduleFile);
+            }
+            const file = DCommon.pipe(DGenerator.concat(defaultSharedDependencies.value, context.sharedDependencies), DGenerator.reduce(DGenerator.reduceFrom({
+                packageName: sharedDependencyPackageName,
+                imports: [],
+                declarations: [],
+                init: [],
+            }), ({ item, lastValue, nextWithObject }) => nextWithObject(lastValue, {
+                imports: DArray.concat(lastValue.imports, item.imports),
+                declarations: DArray.concat(lastValue.declarations, item.declarations),
+                init: DArray.concat(lastValue.init, item.init),
+            })), createFile);
+            return exit(DEither.right("build-shared-dependencies-file", {
+                content: GoPrinter.printGoFile(file),
+                outputPath: DPath.declarePath(`${sharedDependencyPackageName.value}/${sharedDependencyPackageName.value}.go`),
+            }), mainFile, moduleFile);
+        }
+        const sourceFile = await typescriptInstance.project.program.getSourceFile(path);
+        if (!sourceFile) {
+            return exit(DEither.left("source-file-not-found", path));
+        }
+        if (accumulator.built.has(sourceFile.path)) {
+            return next({
+                ...accumulator,
+                pending: DArray.shift(accumulator.pending),
+            });
+        }
+        const pendingRest = DArray.shift(accumulator.pending);
+        const transformed = await transformSourceFile(sourceFile, context);
+        if (DEither.isLeft(transformed)) {
+            return exit(transformed);
+        }
+        const sourcePackage = DCommon.pipe(DEither.rightPipe(DPath.createAbsolute(sourceFile.path), (sourcePath) => createSourcePackageLayout(typescriptInstance.projectWorkDirectory, sourcePath)), DEither.unwrapRight);
+        if (DEither.isLeft(sourcePackage)) {
+            return exit(sourcePackage);
+        }
+        const result = DEither.unwrapRight(transformed);
+        accumulator.built.add(sourceFile.path);
+        return next({
+            pending: [...pendingRest, ...result.context.file.dependencyFiles],
+            built: accumulator.built,
+        }, DEither.right("build-source-file", {
+            content: GoPrinter.printGoFile(result.file),
+            outputPath: sourcePackage.outputPath,
+        }));
+    });
+}
