@@ -4,11 +4,20 @@ import type { GoAST } from "@go";
 import { duploJSTypeTransformers } from "../duplojs";
 import { sharedTypeTransformers } from "../shared";
 import { float64TypeTransformer } from "./float";
+import { literalTypeTransformer } from "./literal";
+import { parenthesizedTypeTransformer } from "./parenthesized";
+import { unionTypeTransformer } from "./union";
+
+export * from "./checkerType";
+export * from "./union";
 
 export const typeTransformers = DCommon.memo(
 	(): readonly Transformer<GoAST.Type | GoAST.TypeReference>[] => [
 		...duploJSTypeTransformers.value,
 		...sharedTypeTransformers.value,
 		float64TypeTransformer,
+		literalTypeTransformer,
+		parenthesizedTypeTransformer,
+		unionTypeTransformer,
 	],
 );
