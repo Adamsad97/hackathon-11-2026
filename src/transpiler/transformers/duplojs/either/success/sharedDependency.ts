@@ -5,6 +5,7 @@ import { createSharedDependency } from "@transformer";
 export const successFunctionIdentifier = GoAST.createIdentifier("EitherSuccessOf");
 export const successTypeIdentifier = GoAST.createIdentifier("EitherSuccess");
 export const eitherRightValueIdentifier = GoAST.createIdentifier("eitherRightValue");
+export const eitherInformationIdentifier = GoAST.createIdentifier("eitherInformation");
 
 export const eitherSuccessDependency = DCommon.memo(() => {
 	const generic = GoAST.createIdentifier("T");
@@ -73,6 +74,28 @@ export const eitherSuccessDependency = DCommon.memo(() => {
 								GoAST.createSelectorExpression({
 									target: GoAST.createIdentifier("value"),
 									identifier: GoAST.createIdentifier("Value"),
+								}),
+							],
+						}),
+					],
+				}),
+			}),
+			GoAST.createMethodDeclaration({
+				identifier: eitherInformationIdentifier,
+				receiver: [
+					GoAST.createIdentifier("value"),
+					successTypeReference,
+				],
+				generic: [],
+				arguments: [],
+				returnTypes: [GoAST.builtinTypeReferences.string],
+				body: GoAST.createBlockStatement({
+					statements: [
+						GoAST.createReturnStatement({
+							values: [
+								GoAST.createSelectorExpression({
+									target: GoAST.createIdentifier("value"),
+									identifier: GoAST.createIdentifier("Information"),
 								}),
 							],
 						}),
