@@ -32,7 +32,7 @@ const binaryOperators: Partial<
 	[TsAST.SyntaxKind.GreaterThanEqualsToken]: ">=",
 };
 
-export const binaryExpressionTransformer: Transformer<GoAST.BinaryExpression> = createTransformer(
+export const binaryExpressionTransformer: Transformer<GoAST.BinaryExpression | GoAST.Identifier> = createTransformer(
 	async(node, context) => {
 		if (!TsAST.isBinaryExpression(node)) {
 			return context.notSupport();
@@ -65,6 +65,55 @@ export const binaryExpressionTransformer: Transformer<GoAST.BinaryExpression> = 
 
 		if (DEither.isLeft(right)) {
 			return right;
+		}
+
+		// `&&` et `||` n'évaluent leur opérande droit que si le gauche ne suffit pas. Sans
+		// préparation, l'opérateur Go a le même court-circuit. Sinon, les préparations du côté
+		// droit sont placées dans un `if` qui n'est exécuté que lorsque ce côté est nécessaire.
+		if (operator === "&&" || operator === "||") {
+			if (DArray.lengthEqual(right.before, 0)) {
+				return context.success({
+					before: DArray.push(left.before, leftAssignment),
+					result: GoAST.createBinaryExpression({
+						operator,
+						left: leftAssignment.identifier,
+						right: right.result,
+					}),
+				});
+			}
+
+			const result = GoAST.createShortVariableDeclarationStatement({
+				identifier: context.generateIdentifier(),
+				initializer: leftAssignment.identifier,
+			});
+
+			return context.success({
+				before: DArray.concat(
+					left.before,
+					[
+						leftAssignment,
+						result,
+						GoAST.createIfStatement({
+							condition: operator === "&&"
+								? result.identifier
+								: GoAST.createUnaryExpression({
+									operator: "!",
+									operand: result.identifier,
+								}),
+							body: GoAST.createBlockStatement({
+								statements: DArray.push(
+									right.before,
+									GoAST.createAssignmentStatement({
+										targets: DCommon.cast([result.identifier]),
+										values: DCommon.cast([right.result]),
+									}),
+								),
+							}),
+						}),
+					],
+				),
+				result: result.identifier,
+			});
 		}
 
 		const rightAssignment = GoAST.createShortVariableDeclarationStatement({
