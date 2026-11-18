@@ -6,8 +6,12 @@ import { TsAST } from "@typescript";
 import * as DPattern from "@duplojs/lang/pattern";
 import { failTypeHandler } from "./fail";
 import { isRightExpressionHandler } from "./isRight";
+import { leftExpressionHandler, leftTypeHandler } from "./left";
+import { matchInformationExpressionHandler } from "./matchInformation";
+import { rightPipeExpressionHandler } from "./rightPipe";
 import { successExpressionHandler, successTypeHandler } from "./success";
 import { whenIsRightExpressionHandler } from "./whenIsRight";
+import { whenIsRightOtherwiseExpressionHandler } from "./whenIsRightOtherwise";
 
 export const duploJSEitherDeclarationTransformer: Transformer<GoAST.Declaration> = createTransformer(
 	(_node, context) => context.notSupport(),
@@ -58,6 +62,34 @@ export const duploJSEitherExpressionTransformer: Transformer<GoAST.Expression> =
 					context,
 				),
 			),
+			DPattern.match(
+				DCommon.equal("left"),
+				() => leftExpressionHandler(
+					node,
+					context,
+				),
+			),
+			DPattern.match(
+				DCommon.equal("rightPipe"),
+				() => rightPipeExpressionHandler(
+					node,
+					context,
+				),
+			),
+			DPattern.match(
+				DCommon.equal("whenIsRightOtherwise"),
+				() => whenIsRightOtherwiseExpressionHandler(
+					node,
+					context,
+				),
+			),
+			DPattern.match(
+				DCommon.equal("matchInformation"),
+				() => matchInformationExpressionHandler(
+					node,
+					context,
+				),
+			),
 			DPattern.otherwise(
 				() => context.error(node),
 			),
@@ -93,6 +125,10 @@ export const duploJSEitherTypeTransformer: Transformer<
 			DPattern.match(
 				DCommon.equal("Fail"),
 				() => failTypeHandler(node, context),
+			),
+			DPattern.match(
+				DCommon.equal("Left"),
+				() => leftTypeHandler(node, context),
 			),
 			DPattern.otherwise(
 				() => context.notSupport(),
