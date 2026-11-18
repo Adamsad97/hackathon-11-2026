@@ -31,25 +31,32 @@ export const functionTypeTransformer: Transformer<GoAST.FunctionType> = createTr
 				: context.error(node, "un-support-before-on-function-type");
 		};
 
-		const functionArguments: GoAST.FunctionArgument[] = [];
+		const functionArguments = await DCommon.asyncPipe(
+			node.parameters,
+			DArray.map(
+				(parameter) => !parameter.type || parameter.dotDotDotToken || parameter.questionToken
+					? Promise.resolve(context.error(parameter, "function-type-parameter-not-supported"))
+					: translate(parameter.type),
+			),
+			DCommon.promiseAll,
+			DArray.reduce(
+				DArray.reduceFrom<readonly GoAST.FunctionArgument[]>([]),
+				({ element, lastValue, next, exit }) => DEither.isLeft(element)
+					? exit(element)
+					: next(
+						DArray.push(
+							lastValue,
+							GoAST.createFunctionArgument({
+								identifier: GoAST.createIdentifier("_"),
+								type: DEither.unwrapRight(element),
+							}),
+						),
+					),
+			),
+		);
 
-		for (const parameter of node.parameters) {
-			if (!parameter.type || parameter.dotDotDotToken || parameter.questionToken) {
-				return context.error(parameter, "function-type-parameter-not-supported");
-			}
-
-			const parameterType = await translate(parameter.type);
-
-			if (DEither.isLeft(parameterType)) {
-				return parameterType;
-			}
-
-			functionArguments.push(
-				GoAST.createFunctionArgument({
-					identifier: GoAST.createIdentifier("_"),
-					type: DEither.unwrapRight(parameterType),
-				}),
-			);
+		if (DEither.isLeft(functionArguments)) {
+			return functionArguments;
 		}
 
 		if (!node.type) {

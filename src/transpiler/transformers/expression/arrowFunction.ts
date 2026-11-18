@@ -23,35 +23,42 @@ function translateArrayBinding(
 	source: GoAST.Identifier,
 	context: BuildContext,
 ) {
-	const bindings: GoAST.Statement[] = [];
+	const bindings = DArray.reduce(
+		pattern.elements,
+		DArray.reduceFrom<readonly GoAST.Statement[]>([]),
+		({ element, index, lastValue, next, exit }) => {
+			// Un trou (`[one, , divisor]`) ne lie aucun nom : la position est simplement ignorée.
+			if (TsAST.isOmittedExpression(element) || !element.name) {
+				return next(lastValue);
+			}
 
-	for (const [position, element] of pattern.elements.entries()) {
-		// Un trou (`[one, , divisor]`) ne lie aucun nom : la position est simplement ignorée.
-		if (TsAST.isOmittedExpression(element) || !element.name) {
-			continue;
-		}
+			if (
+				!TsAST.isIdentifier(element.name)
+				|| element.dotDotDotToken
+				|| element.initializer
+				|| element.propertyName
+			) {
+				return exit(context.error(element, "binding-element-not-supported"));
+			}
 
-		if (
-			!TsAST.isIdentifier(element.name)
-			|| element.dotDotDotToken
-			|| element.initializer
-			|| element.propertyName
-		) {
-			return context.error(element, "binding-element-not-supported");
-		}
+			return next(
+				DArray.push(
+					lastValue,
+					GoAST.createShortVariableDeclarationStatement({
+						identifier: context.createSourceIdentifier(element.name.text),
+						initializer: GoAST.createIndexExpression({
+							target: source,
+							index: GoAST.createIntegerLiteral({ value: BigInt(index) }),
+						}),
+					}),
+				),
+			);
+		},
+	);
 
-		bindings.push(
-			GoAST.createShortVariableDeclarationStatement({
-				identifier: context.createSourceIdentifier(element.name.text),
-				initializer: GoAST.createIndexExpression({
-					target: source,
-					index: GoAST.createIntegerLiteral({ value: BigInt(position) }),
-				}),
-			}),
-		);
-	}
-
-	return DEither.success<readonly GoAST.Statement[]>(bindings);
+	return DEither.isLeft(bindings)
+		? bindings
+		: DEither.success(bindings);
 }
 
 async function translateParameter(
