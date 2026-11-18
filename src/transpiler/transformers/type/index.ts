@@ -3,7 +3,9 @@ import { type Transformer } from "@transformer";
 import type { GoAST } from "@go";
 import { duploJSTypeTransformers } from "../duplojs";
 import { sharedTypeTransformers } from "../shared";
+import { anyTypeTransformer } from "./any";
 import { float64TypeTransformer } from "./float";
+import { literalTypeTransformer } from "./literal";
 import { parenthesizedTypeTransformer } from "./parenthesized";
 import { unionTypeTransformer } from "./union";
 
@@ -14,5 +16,7 @@ export const typeTransformers = DCommon.memo(
 		parenthesizedTypeTransformer,
 		unionTypeTransformer,
 		float64TypeTransformer,
+		literalTypeTransformer,
+		anyTypeTransformer,
 	],
 );
