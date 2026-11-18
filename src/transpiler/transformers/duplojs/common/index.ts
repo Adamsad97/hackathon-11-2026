@@ -5,6 +5,7 @@ import { createTransformer, type Transformer } from "@transformer";
 import type { GoAST } from "@go";
 import { TsAST } from "@typescript";
 import { printExpressionHandler } from "./print";
+import { pipeExpressionHandler } from "./pipe";
 
 export const duploJSCommonExpressionTransformer: Transformer<GoAST.Expression> = createTransformer(
 	async(node, context) => {
@@ -33,6 +34,13 @@ export const duploJSCommonExpressionTransformer: Transformer<GoAST.Expression> =
 			DPattern.match(
 				DCommon.equal("print"),
 				() => printExpressionHandler(
+					node,
+					context,
+				),
+			),
+			DPattern.match(
+				DCommon.equal("pipe"),
+				() => pipeExpressionHandler(
 					node,
 					context,
 				),
