@@ -10,6 +10,7 @@ import { type GoType } from "../../../type";
 import { createUnionTypeIdentifier, createUnionValueIdentifier, unionTagIdentifier } from "../../../type/union/sharedDependency";
 import { successTypeIdentifier } from "../../either/success/sharedDependency";
 import { failTypeIdentifier } from "../../either/fail/sharedDependency";
+import { leftTypeIdentifier } from "../../either/left/sharedDependency";
 import {
 	inspectDependency,
 	inspectEntriesIdentifier,
@@ -37,6 +38,8 @@ const {
 
 const inspectEitherSuccessIdentifier = GoAST.createIdentifier("InspectEitherSuccess");
 const inspectEitherFailIdentifier = GoAST.createIdentifier("InspectEitherFail");
+const inspectEitherLeftIdentifier = GoAST.createIdentifier("InspectEitherLeft");
+const inspectSliceIdentifier = GoAST.createIdentifier("InspectSlice");
 
 const createInspectUnionIdentifier = (arity: number) => GoAST.createIdentifier(`InspectUnion${arity}`);
 
@@ -149,6 +152,138 @@ const failInspectorDependency = DCommon.memo(() => {
 							],
 							indentation,
 						),
+					),
+				),
+			}),
+		],
+	});
+});
+
+const leftInspectorDependency = DCommon.memo(() => {
+	const generic = identifier("T");
+	const inspectValue = identifier("inspectValue");
+	const value = identifier("value");
+	const indentation = identifier("indentation");
+	const leftType = GoAST.createGenericTypeReference({
+		typeReference: leftTypeIdentifier,
+		typeArguments: DCommon.cast([generic]),
+	});
+
+	return createSharedDependency({
+		imports: [],
+		init: [],
+		declarations: [
+			GoAST.createFunctionDeclaration({
+				identifier: inspectEitherLeftIdentifier,
+				generic: [
+					GoAST.createTypeParameter({
+						identifier: generic,
+						constraint: GoAST.builtinTypeReferences.any,
+					}),
+				],
+				arguments: [argument(inspectValue, inspectorType(generic))],
+				returnTypes: [inspectorType(leftType)],
+				body: block(
+					returnValue(
+						GoAST.createFunctionLiteral({
+							arguments: [
+								argument(value, leftType),
+								argument(indentation, GoAST.builtinTypeReferences.int),
+							],
+							returnTypes: [GoAST.builtinTypeReferences.string],
+							body: block(
+								returnValue(
+									createEitherObject(
+										[
+											concatenate(eitherEntry("left"), stringLiteral("null")),
+											concatenate(
+												eitherEntry("information"),
+												call(inspectStringIdentifier, member(value, "Information"), nested(indentation)),
+											),
+											concatenate(
+												eitherEntry("value"),
+												call(inspectValue, member(value, "Value"), nested(indentation)),
+											),
+										],
+										indentation,
+									),
+								),
+							),
+						}),
+					),
+				),
+			}),
+		],
+	});
+});
+
+// Un tableau s'affiche comme dans Node : `[ 'a', 'b' ]` sur une ligne si les entrées tiennent,
+// sinon une entrée par ligne. Chaque élément est affiché par l'inspecteur de son type.
+const sliceInspectorDependency = DCommon.memo(() => {
+	const generic = identifier("T");
+	const inspectValue = identifier("inspectValue");
+	const value = identifier("value");
+	const indentation = identifier("indentation");
+	const entries = identifier("entries");
+	const index = identifier("index");
+	const element = identifier("element");
+	const sliceType = GoAST.createSliceType({ elementType: generic });
+	const stringSlice = GoAST.createSliceType({ elementType: GoAST.builtinTypeReferences.string });
+
+	return createSharedDependency({
+		imports: [],
+		init: [],
+		declarations: [
+			GoAST.createFunctionDeclaration({
+				identifier: inspectSliceIdentifier,
+				generic: [
+					GoAST.createTypeParameter({
+						identifier: generic,
+						constraint: GoAST.builtinTypeReferences.any,
+					}),
+				],
+				arguments: [argument(inspectValue, inspectorType(generic))],
+				returnTypes: [inspectorType(sliceType)],
+				body: block(
+					returnValue(
+						GoAST.createFunctionLiteral({
+							arguments: [
+								argument(value, sliceType),
+								argument(indentation, GoAST.builtinTypeReferences.int),
+							],
+							returnTypes: [GoAST.builtinTypeReferences.string],
+							body: block(
+								GoAST.createShortVariableDeclarationStatement({
+									identifier: entries,
+									initializer: GoAST.createCallExpression({
+										callee: identifier("make"),
+										typeArgument: stringSlice,
+										arguments: [call(identifier("len"), value)],
+									}),
+								}),
+								GoAST.createRangeStatement({
+									binding: GoAST.createRangeDeclaration({
+										key: index,
+										value: element,
+									}),
+									expression: value,
+									body: block(
+										GoAST.createAssignmentStatement({
+											targets: DCommon.cast([
+												GoAST.createIndexExpression({
+													target: entries,
+													index,
+												}),
+											]),
+											values: DCommon.cast([call(inspectValue, element, nested(indentation))]),
+										}),
+									),
+								}),
+								returnValue(
+									call(inspectEntriesIdentifier, entries, indentation, stringLiteral("["), stringLiteral("]")),
+								),
+							),
+						}),
 					),
 				),
 			}),
@@ -279,6 +414,41 @@ export function createInspector(
 		return DEither.success<GoAST.Expression>(shared(inspectEitherFailIdentifier));
 	}
 
+	if (DModeling.hasTagValue(type, "[node][type]slice") || DModeling.hasTagValue(type, "[node][type]array")) {
+		const elementInspector = createInspector(type.elementType, location, context);
+
+		if (DEither.isLeft(elementInspector)) {
+			return elementInspector;
+		}
+
+		context.registerSharedDependency(sliceInspectorDependency.value);
+
+		const sliceInspector = call(shared(inspectSliceIdentifier), DEither.unwrapRight(elementInspector));
+
+		if (DModeling.hasTagValue(type, "[node][type]slice")) {
+			return DEither.success<GoAST.Expression>(sliceInspector);
+		}
+
+		// Un tuple (tableau Go de taille fixe) s'affiche comme un tableau : il est vu comme une slice.
+		const value = identifier("value");
+		const indentation = identifier("indentation");
+
+		return DEither.success<GoAST.Expression>(
+			GoAST.createFunctionLiteral({
+				arguments: [
+					argument(value, type),
+					argument(indentation, GoAST.builtinTypeReferences.int),
+				],
+				returnTypes: [GoAST.builtinTypeReferences.string],
+				body: block(
+					returnValue(
+						call(sliceInspector, GoAST.createSliceExpression({ target: value }), indentation),
+					),
+				),
+			}),
+		);
+	}
+
 	if (
 		!DModeling.hasTagValue(type, "[node]type-reference-generic")
 		|| !DModeling.hasTagValue(type.typeReference, "[node]type-reference-package")
@@ -311,6 +481,14 @@ export function createInspector(
 
 		return DEither.success<GoAST.Expression>(
 			call(shared(inspectEitherSuccessIdentifier), ...argumentInspectors),
+		);
+	}
+
+	if (genericName === leftTypeIdentifier.value) {
+		context.registerSharedDependency(leftInspectorDependency.value);
+
+		return DEither.success<GoAST.Expression>(
+			call(shared(inspectEitherLeftIdentifier), ...argumentInspectors),
 		);
 	}
 

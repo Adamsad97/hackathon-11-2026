@@ -1,5 +1,5 @@
 import { type Transformer } from "@transformer";
-import { GoAST } from "@go";
+import { GoAST, GoPrinter } from "@go";
 import { TsAST } from "@typescript";
 import * as DArray from "@duplojs/lang/array";
 import * as DCommon from "@duplojs/lang/common";
@@ -45,8 +45,13 @@ export async function printExpressionHandler(
 
 	const packageName = context.registerSharedDependency(inspectDependency.value);
 
-	// `console.info` écrit une chaîne de premier niveau telle quelle, sans guillemets.
-	const inspector = inputType.flags & TypeFlags.StringLike
+	// `console.info` écrit une chaîne de premier niveau telle quelle, sans guillemets. Le test porte
+	// sur la représentation Go : une union de chaînes littérales (`"oui" | "non"`) est aussi une chaîne.
+	const stringKey = GoPrinter.renderNode(GoAST.builtinTypeReferences.string);
+	const isString = inputType.flags & TypeFlags.StringLike
+		|| GoPrinter.renderNode(DEither.unwrapRight(inputGoType)) === stringKey;
+
+	const inspector = isString
 		? DEither.success<GoAST.Expression>(
 			GoAST.createSelectorExpression({
 				target: packageName,
