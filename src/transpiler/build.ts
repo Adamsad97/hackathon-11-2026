@@ -97,7 +97,18 @@ export function build(
 						({ item, lastValue, nextWithObject }) => nextWithObject(
 							lastValue,
 							{
-								imports: DArray.concat(lastValue.imports, item.imports),
+								imports: DArray.reduce(
+									item.imports,
+									DArray.reduceFrom<readonly GoAST.ImportDeclaration[]>(lastValue.imports),
+									({ element, lastValue: imported, next }) => next(
+										DArray.find(
+											imported,
+											(declaration) => declaration.path === element.path,
+										)
+											? imported
+											: DArray.push(imported, element),
+									),
+								),
 								declarations: DArray.concat(
 									lastValue.declarations,
 									item.declarations,
