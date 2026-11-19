@@ -18,6 +18,7 @@ import {
 	getMemberValue,
 	placeValue,
 	resolveEitherInput,
+	unwrapPromiseType,
 	type EitherMember,
 } from "../members";
 
@@ -164,7 +165,8 @@ export async function rightPipeExpressionHandler(
 		return context.error(node, "right-pipe-expects-input-and-pipes");
 	}
 
-	const outputType = await typeChecker.getTypeAtLocation(node);
+	const rawOutputType = await typeChecker.getTypeAtLocation(node);
+	const outputType = await unwrapPromiseType(rawOutputType, context);
 	const outputGoTypeResult = await transformCheckerType(outputType, node, context);
 
 	if (DEither.isLeft(outputGoTypeResult)) {

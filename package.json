@@ -10,6 +10,7 @@
     "build:05": "pnpm build --tsconfig projects/05/tsconfig.json --input projects/05/index.ts --output projects/05/dist",
     "build:06": "pnpm build --tsconfig projects/06/tsconfig.json --input projects/06/index.ts --output projects/06/dist",
     "build:07": "pnpm build --tsconfig projects/07/tsconfig.json --input projects/07/index.ts --output projects/07/dist",
+    "build:10": "pnpm build --tsconfig projects/10/tsconfig.json --input projects/10/index.ts --output projects/10/dist",
     "test:types": "./.commands/test-types.sh",
     "test:lint": "./.commands/test-lint.sh"
   },

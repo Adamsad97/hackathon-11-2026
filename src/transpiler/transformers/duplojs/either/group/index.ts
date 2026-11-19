@@ -1,7 +1,7 @@
 import { type Transformer } from "@transformer";
 import { GoAST } from "@go";
 import { TsAST } from "@typescript";
-import { IndexKind } from "typescript/async";
+import { IndexKind, SignatureKind } from "typescript/async";
 import * as DArray from "@duplojs/lang/array";
 import * as DCommon from "@duplojs/lang/common";
 import * as DEither from "@duplojs/lang/either";
@@ -17,10 +17,12 @@ import {
 	getMemberValue,
 	placeValue,
 	resolveEitherInput,
+	unwrapPromiseType,
 } from "../members";
 
-// `group([...])` : la transaction réussit seulement si chaque résultat est un `Right`. Le premier
-// échec rencontré devient le résultat ; sinon les valeurs sont réunies, dans l'ordre, dans un `Success`.
+// `group([...])` et `asyncGroup([...])` : la transaction réussit seulement si chaque résultat est un `Right`.
+// Le premier échec rencontré devient le résultat ; sinon les valeurs sont réunies, dans l'ordre, dans un `Success`.
+// Si les éléments sont des fonctions (getters), elles sont appelées à chaque itération.
 // La boucle est placée dans une fonction Go appelée immédiatement : l'échec est un `return` anticipé.
 export async function groupExpressionHandler(
 	node: TsAST.Node,
@@ -45,8 +47,13 @@ export async function groupExpressionHandler(
 		return groupGoType;
 	}
 
-	// Seul un tableau est traduit : un objet (`group({ a, b })`) demanderait une struct par forme.
-	if (!DModeling.hasTagValue(DEither.unwrapRight(groupGoType), "[node][type]slice")) {
+	const groupRepresentation = DEither.unwrapRight(groupGoType);
+
+	// Un tableau ou une slice est accepté.
+	if (
+		!DModeling.hasTagValue(groupRepresentation, "[node][type]slice")
+		&& !DModeling.hasTagValue(groupRepresentation, "[node][type]array")
+	) {
 		return context.error(groupNode, "group-only-supports-arrays");
 	}
 
@@ -56,7 +63,17 @@ export async function groupExpressionHandler(
 		return context.error(groupNode, "group-element-type-not-resolved");
 	}
 
-	const elementInput = await resolveEitherInput(elementType, groupNode, context);
+	// Si l'élément est une fonction (cas de `asyncGroup` ou de getters), on extrait son type de retour.
+	const signatures = await typeChecker.getSignaturesOfType(elementType, SignatureKind.Call);
+	const isGetter = signatures.length > 0;
+	let effectiveEitherType = elementType;
+
+	if (isGetter && signatures[0]) {
+		const rawReturnType = await typeChecker.getReturnTypeOfSignature(signatures[0]);
+		effectiveEitherType = await unwrapPromiseType(rawReturnType, context);
+	}
+
+	const elementInput = await resolveEitherInput(effectiveEitherType, groupNode, context);
 
 	if (DEither.isLeft(elementInput)) {
 		return elementInput;
@@ -67,7 +84,6 @@ export async function groupExpressionHandler(
 	const rightMembers = filterSide(either, "right");
 	const [rightMember] = rightMembers;
 
-	// Un élément fonction (getter) ou une valeur qui n'est pas un Either ne sont pas traduits.
 	if (!rightMember || !DArray.lengthEqual(rightMembers, 1) || !DArray.lengthEqual(filterSide(either, "other"), 0)) {
 		return context.error(groupNode, "group-element-must-have-one-right-representation");
 	}
@@ -96,8 +112,25 @@ export async function groupExpressionHandler(
 	}
 
 	const element = context.generateIdentifier();
+	const current = isGetter ? context.generateIdentifier() : element;
 	const values = context.generateIdentifier();
-	const valuesType = GoAST.createSliceType({ elementType: valueGoType });
+
+	const outputEffectiveType = await unwrapPromiseType(outputType, context);
+	const outputEither = await resolveEitherInput(outputEffectiveType, node, context);
+
+	let valuesType: GoAST.Type = GoAST.createSliceType({ elementType: valueGoType });
+	if (DEither.isRight(outputEither)) {
+		const outRightMembers = filterSide(DEither.unwrapRight(outputEither), "right");
+		const [firstOutRight] = outRightMembers;
+		if (firstOutRight && DModeling.hasTagValue(firstOutRight.goType, "[node]type-reference-generic")) {
+			const [firstArg] = firstOutRight.goType.typeArguments;
+			if (firstArg) {
+				valuesType = firstArg as GoAST.Type;
+			}
+		}
+	}
+	const isTargetArray = DModeling.hasTagValue(valuesType, "[node][type]array");
+	const indexIdentifier = isTargetArray ? context.generateIdentifier() : undefined;
 
 	// Un `return` anticipé par variante d'échec : l'échec devient le résultat de la transaction.
 	const leftReturns = await DCommon.asyncPipe(
@@ -105,7 +138,7 @@ export async function groupExpressionHandler(
 		DArray.map(
 			async(member) => DEither.rightPipe(
 				await placeValue({
-					expression: getMemberValue(element, either, member),
+					expression: getMemberValue(current, either, member),
 					goType: member.goType,
 					target: outputType,
 					location: node,
@@ -113,7 +146,7 @@ export async function groupExpressionHandler(
 				}),
 				(returned): DEither.Success<GoAST.Statement> => DEither.success(
 					GoAST.createIfStatement({
-						condition: createMembersTest(element, either, [member]),
+						condition: createMembersTest(current, either, [member]),
 						body: GoAST.createBlockStatement({
 							statements: [GoAST.createReturnStatement({ values: [returned] })],
 						}),
@@ -171,42 +204,74 @@ export async function groupExpressionHandler(
 				returnTypes: [DEither.unwrapRight(outputGoType)],
 				body: GoAST.createBlockStatement({
 					statements: [
-						// Capacité réservée : le nombre de valeurs est au plus celui des résultats.
-						GoAST.createShortVariableDeclarationStatement({
-							identifier: values,
-							initializer: GoAST.createCallExpression({
-								callee: GoAST.createIdentifier("make"),
-								typeArgument: valuesType,
-								arguments: [
-									GoAST.createIntegerLiteral({ value: 0n }),
-									GoAST.createCallExpression({
-										callee: GoAST.createIdentifier("len"),
-										arguments: [DEither.unwrapRight(group).identifier],
-									}),
-								],
+						isTargetArray
+							? GoAST.createVariableDeclarationZeroValue({
+								identifier: values,
+								typeReference: valuesType,
+							})
+							: GoAST.createShortVariableDeclarationStatement({
+								identifier: values,
+								initializer: GoAST.createCallExpression({
+									callee: GoAST.createIdentifier("make"),
+									typeArgument: valuesType,
+									arguments: [
+										GoAST.createIntegerLiteral({ value: 0n }),
+										GoAST.createCallExpression({
+											callee: GoAST.createIdentifier("len"),
+											arguments: [DEither.unwrapRight(group).identifier],
+										}),
+									],
+								}),
 							}),
-						}),
 						GoAST.createRangeStatement({
-							binding: GoAST.createRangeDeclaration({
-								key: GoAST.createIdentifier("_"),
-								value: element,
-							}),
+							binding: isTargetArray && indexIdentifier
+								? GoAST.createRangeDeclaration({
+									key: indexIdentifier,
+									value: element,
+								})
+								: GoAST.createRangeDeclaration({
+									key: GoAST.createIdentifier("_"),
+									value: element,
+								}),
 							expression: DEither.unwrapRight(group).identifier,
 							body: GoAST.createBlockStatement({
 								statements: [
-									...leftReturns,
-									GoAST.createAssignmentStatement({
-										targets: DCommon.cast([values]),
-										values: DCommon.cast([
-											GoAST.createCallExpression({
-												callee: GoAST.createIdentifier("append"),
-												arguments: [
-													values,
-													getEitherValue(getMemberValue(element, either, rightMember)),
-												],
+									...(isGetter
+										? [
+											GoAST.createShortVariableDeclarationStatement({
+												identifier: current,
+												initializer: GoAST.createCallExpression({
+													callee: element,
+													arguments: [],
+												}),
 											}),
-										]),
-									}),
+										]
+										: []),
+									...leftReturns,
+									isTargetArray && indexIdentifier
+										? GoAST.createAssignmentStatement({
+											targets: DCommon.cast([
+												GoAST.createIndexExpression({
+													target: values,
+													index: indexIdentifier,
+												}),
+											]),
+											values: DCommon.cast([
+												getEitherValue(getMemberValue(current, either, rightMember)),
+											]),
+										})
+										: GoAST.createAssignmentStatement({
+											targets: DCommon.cast([values]),
+											values: DCommon.cast([
+												GoAST.createCallExpression({
+													callee: GoAST.createIdentifier("append"),
+													arguments: [
+														values,
+														getEitherValue(getMemberValue(current, either, rightMember)),
+													],
+												}),
+											]),
+										}),
 								],
 							}),
 						}),

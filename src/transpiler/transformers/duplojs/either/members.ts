@@ -6,7 +6,8 @@ import { GoAST, GoPrinter } from "@go";
 import { TsAST } from "@typescript";
 import { SignatureKind, type Type } from "typescript/async";
 import type { BuildContext } from "../../../context/build";
-import { createUnionTagTest, resolveCheckerUnion, type CheckerUnion, type GoType } from "../../type";
+import { createUnionTagTest, resolveCheckerUnion, unwrapPromiseType, type CheckerUnion, type GoType } from "../../type";
+export { unwrapPromiseType };
 import { createUnionValueIdentifier, unionTagIdentifier } from "../../type/union/sharedDependency";
 import { successTypeIdentifier } from "./success/sharedDependency";
 import { failTypeIdentifier } from "./fail/sharedDependency";
@@ -66,7 +67,8 @@ export async function resolveEitherInput(
 	location: TsAST.Node,
 	context: BuildContext,
 ) {
-	const union = await resolveCheckerUnion(type, location, context);
+	const effectiveType = await unwrapPromiseType(type, context);
+	const union = await resolveCheckerUnion(effectiveType, location, context);
 
 	if (DEither.isLeft(union)) {
 		return union;
@@ -143,7 +145,8 @@ export interface PlaceValueParams {
 export async function placeValue(params: PlaceValueParams) {
 	const { expression, goType, target, location, context } = params;
 
-	const targetUnion = await resolveCheckerUnion(target, location, context);
+	const effectiveTarget = await unwrapPromiseType(target, context);
+	const targetUnion = await resolveCheckerUnion(effectiveTarget, location, context);
 
 	if (DEither.isLeft(targetUnion)) {
 		return targetUnion;

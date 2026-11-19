@@ -8,7 +8,7 @@ import { TsAST } from "@typescript";
 import type { Type } from "typescript/async";
 import type { BuildContext } from "../../../context/build";
 import { typeTransformers } from "..";
-import { transformCheckerType, type GoType } from "../checkerType";
+import { transformCheckerType, unwrapPromiseType, type GoType } from "../checkerType";
 import { createUnionTypeIdentifier, createUnionValueIdentifier, getUnionDependency, unionTagIdentifier } from "./sharedDependency";
 
 export interface UnionMember {
@@ -131,9 +131,10 @@ export async function resolveCheckerUnion(
 	location: TsAST.Node,
 	context: BuildContext,
 ) {
-	const sourceTypes = type.isUnionType()
-		? await type.getTypes() ?? [type]
-		: [type];
+	const effectiveType = await unwrapPromiseType(type, context);
+	const sourceTypes = effectiveType.isUnionType()
+		? await effectiveType.getTypes() ?? [effectiveType]
+		: [effectiveType];
 
 	const translated = await DCommon.asyncPipe(
 		sourceTypes,

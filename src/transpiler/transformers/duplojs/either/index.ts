@@ -81,11 +81,11 @@ export const duploJSEitherExpressionTransformer: Transformer<GoAST.Expression> =
 				() => leftExpressionHandler(node, context),
 			),
 			DPattern.match(
-				DCommon.equal("rightPipe"),
+				(name) => name === "rightPipe" || name === "rightAsyncPipe",
 				() => rightPipeExpressionHandler(node, context),
 			),
 			DPattern.match(
-				DCommon.equal("group"),
+				(name) => name === "group" || name === "asyncGroup",
 				() => groupExpressionHandler(node, context),
 			),
 			DPattern.match(

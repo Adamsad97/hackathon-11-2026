@@ -39,7 +39,7 @@ export const duploJSCommonExpressionTransformer: Transformer<GoAST.Expression> =
 				),
 			),
 			DPattern.match(
-				DCommon.equal("pipe"),
+				(name) => name === "pipe" || name === "asyncPipe",
 				() => pipeExpressionHandler(
 					node,
 					context,
