@@ -60,3 +60,24 @@ func Sourced_calculate(Sourced_one float64, Sourced_two float64, Sourced_divisor
   - Le résultat de `asyncGroup` est vérifié par étiquette (`Tag == 1` pour succès, sinon échec).
   - En cas de succès, `ArrayMap` applique `DString.to`.
   - En cas d'échec, la branche alternative produit `[ "transaction annulée" ]`.
+
+
+## Résultats
+
+La sortie du programme Go généré est identique, octet par octet, à celle de `tsx projects/10/index.ts` :
+
+```
+[ 'transaction annulée' ]
+```
+
+Reproduction :
+
+```bash
+pnpm build:10
+cd projects/10/dist && go run .
+```
+
+## Limites
+
+- Les promesses sont évaluées séquentiellement et de manière synchrone en Go ; les accès réseau/IO parallèles asynchrones réels (goroutines / channels) ne sont pas modélisés ici.
+- Seules les expressions `await` directes et `Promise<T>` résolubles statiquement sont prises en charge.
