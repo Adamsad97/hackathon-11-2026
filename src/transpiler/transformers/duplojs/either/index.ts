@@ -6,7 +6,7 @@ import { TsAST } from "@typescript";
 import * as DPattern from "@duplojs/lang/pattern";
 import { successExpressionHandler, successTypeHandler } from "./success";
 import { typeGuardExpressionHandler } from "./isRight";
-import { failTypeHandler } from "./fail";
+import { failTypeHandler, failExpressionHandler } from "./fail";
 import { leftExpressionHandler, leftTypeHandler } from "./left";
 import { rightPipeExpressionHandler } from "./rightPipe";
 import { groupExpressionHandler } from "./group";
@@ -87,6 +87,10 @@ export const duploJSEitherExpressionTransformer: Transformer<GoAST.Expression> =
 			DPattern.match(
 				DCommon.equal("group"),
 				() => groupExpressionHandler(node, context),
+			),
+			DPattern.match(
+				DCommon.equal("fail"),
+				() => failExpressionHandler(node, context),
 			),
 			DPattern.match(
 				DCommon.equal("matchInformation"),

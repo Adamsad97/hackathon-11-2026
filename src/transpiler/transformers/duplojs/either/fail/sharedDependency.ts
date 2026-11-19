@@ -3,10 +3,19 @@ import { GoAST } from "@go";
 import { createSharedDependency } from "@transformer";
 
 export const failTypeIdentifier = GoAST.createIdentifier("EitherFail");
+export const failFunctionIdentifier = GoAST.createIdentifier("EitherFailOf");
 
 export const eitherFailDependency = DCommon.memo(() => {
 	const nullType = GoAST.createIdentifier("JSNull");
 	const undefinedType = GoAST.createIdentifier("JSUndefined");
+	const nullLiteral = GoAST.createStructLiteral({
+		typeReference: nullType,
+		elements: [],
+	});
+	const undefinedLiteral = GoAST.createStructLiteral({
+		typeReference: undefinedType,
+		elements: [],
+	});
 
 	return createSharedDependency({
 		imports: [],
@@ -36,6 +45,41 @@ export const eitherFailDependency = DCommon.memo(() => {
 							identifier: GoAST.createIdentifier("Information"),
 							typeReference: GoAST.builtinTypeReferences.string,
 							tag: "json:\"@duplojs/lang/kind/@DuplojsLangEither/information\"",
+						}),
+					],
+				}),
+			}),
+			GoAST.createFunctionDeclaration({
+				identifier: failFunctionIdentifier,
+				generic: [],
+				arguments: [],
+				returnTypes: [failTypeIdentifier],
+				body: GoAST.createBlockStatement({
+					statements: [
+						GoAST.createReturnStatement({
+							values: [
+								GoAST.createStructLiteral({
+									typeReference: failTypeIdentifier,
+									elements: [
+										GoAST.createKeyedElement({
+											key: GoAST.createIdentifier("Left"),
+											value: nullLiteral,
+										}),
+										GoAST.createKeyedElement({
+											key: GoAST.createIdentifier("Fail"),
+											value: nullLiteral,
+										}),
+										GoAST.createKeyedElement({
+											key: GoAST.createIdentifier("Value"),
+											value: undefinedLiteral,
+										}),
+										GoAST.createKeyedElement({
+											key: GoAST.createIdentifier("Information"),
+											value: GoAST.createStringLiteral({ value: "fail" }),
+										}),
+									],
+								}),
+							],
 						}),
 					],
 				}),
