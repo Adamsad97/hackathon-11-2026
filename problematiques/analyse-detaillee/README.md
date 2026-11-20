@@ -22,6 +22,7 @@ Les exercices 01 à 10 ne sont pas 10 problèmes indépendants : chacun réutili
 | [08](08-agregation-group/) | Agrégation `group` | Comment réunir N résultats en une transaction sans supposer la forme du conteneur ? | 09, 10 |
 | [09](09-asynchronisme/) | Asynchronisme | `async` / `await` sans `Promise` en Go : quand l'aplatissement est-il juste ? | 10 |
 | [10](10-affichage-fidele/) | Affichage fidèle | Comment reproduire `util.inspect` et `Number::toString` octet par octet ? | tous |
+| [11](11-objets-et-proprietes/) | Objets et propriétés *(vision)* | Comment lire `user.name` sur une union ou un `any`, et partager un objet comme JavaScript ? | aucun |
 
 Ordre de lecture conseillé : 01 → 02 → 03 (fondations), puis les autres dans n'importe quel ordre.
 
@@ -34,7 +35,7 @@ Ces principes sont ressortis au fil des problématiques et guident toutes les d�
 3. **Ordre d'évaluation explicite** : toute sous-expression non triviale reçoit un nom (contrat `{ before, result }`, problématique 01). C'est ce qui permet d'ajouter ternaire, court-circuit et pipes sans casser le reste.
 4. **Décider à partir du type, jamais de l'exemple.** Plusieurs premières versions passaient l'exemple « par hasard » (type commun dans `whenIsRightOtherwise`, slice dans `group`) et échouaient sur le projet suivant (problématiques 06 et 08).
 5. **Refuser plutôt qu'approximer** : une construction non prise en charge produit une erreur explicite (`function-value-without-expected-type`…), jamais du Go faux qui compile.
-6. **Prouver l'équivalence** : la sortie de chaque projet est identique octet par octet à celle de `tsx`. Nous ajoutons des variantes absentes des exemples, ainsi qu'un test différentiel aléatoire (problématique 10).
+6. **Prouver l'équivalence** : la sortie de chaque projet est identique octet par octet à celle de `tsx`. Nous ajoutons des variantes absentes des exemples, un test différentiel aléatoire (problématique 10) et, à la demande de l'encadrant, un test de transpilation globale (`projects/11`) qui combine les constructions dans un vrai programme.
 7. **Un Go lisible** : variables et paquets nommés selon leur rôle (`callee`, `argument`, `checkedResult`, `add_ts`), runtime partagé limité aux fonctions utilisées.
 
 ## Mesures (benchmarks)
@@ -48,6 +49,7 @@ Machine : Intel i7-1165G7, Windows 11, Go 1.27. Reproduction : `cd problematique
 | Échecs (05) | union + `matchInformation` | `(T, error)` | **≈ 3,5×** |
 | Tuples (07) | `[N]T` : 1 alloc | `[]T` : 1 001 allocs | **≈ 6×** |
 | `map` (07) | allocation unique | `append` successifs | **≈ 2,5×** |
+| Retours (02 § 6) | union étiquetée : 0 alloc | `any` + assertion : 1 alloc | **≈ 3×** quand la fonction est appelée par variable ; égalité si Go la met en ligne |
 | `rightPipe` (06) | fonction anonyme | — | inlinée par le compilateur (vérifié avec `-gcflags=-m`) |
 | `Number::toString` (10) | réimplémentation ECMAScript | `fmt` / `strconv` | **0 différence** sur ~200 000 valeurs aléatoires |
 

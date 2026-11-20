@@ -40,3 +40,15 @@ Première version : les littéraux étaient émis tels quels (`one + two` avec `
 - **Analyse de pureté** : marquer les expressions sans effet (littéraux, identifiants `const`, fonctions DuploJS pures) permettrait d'émettre des expressions imbriquées quand l'ordre n'a pas d'importance, pour un Go plus idiomatique.
 - **Spécialisation entière** : une passe d'optimisation pourrait traduire en `int` les compteurs de boucle dont l'intervalle est prouvé, comme le font les moteurs JavaScript (V8 « Smi »).
 - **Tests différentiels** : générer des expressions arithmétiques aléatoires, les exécuter avec `tsx` et `go run`, et comparer les sorties (*fuzzing* différentiel).
+
+## 5. Limite relevée : `%` et opérateurs bit à bit
+
+En relisant `src/transpiler/transformers/expression/binary.ts`, nous avons constaté que `%` est traduit par l'opérateur Go `%`. Or, en Go, `%` n'existe pas pour les `float64` :
+
+```text
+invalid operation: operator % not defined on a (variable of type float64)
+```
+
+Aucun projet n'utilise `%`, donc le problème ne s'est pas montré. **Correction proposée** : traduire `a % b` par `math.Mod(a, b)`, qui donne le même résultat que JavaScript (`5.5 % 2` vaut `1.5` dans les deux cas, vérifié).
+
+Même remarque pour `&`, `|`, `^`, `<<` et `>>` : JavaScript convertit d'abord les opérandes en entiers 32 bits. Une traduction fidèle passerait par une conversion explicite (`float64(int32(a) & int32(b))`), avec le même comportement de dépassement que JavaScript.

@@ -37,3 +37,17 @@ Une union de chaînes littérales (`"oui" | "non"`) s'affichait **avec** des gui
 - Non reproduits : le regroupement en colonnes des tableaux de plus de 6 éléments, la limite de 100 éléments et la profondeur maximale (`[Object]`).
 - **Tests différentiels généralisés** : appliquer la même méthode (génération aléatoire, puis comparaison avec Node) à `util.inspect` sur des structures imbriquées aléatoires, pour couvrir le passage à la ligne à 80 colonnes.
 - **Performance** : `print` construit des chaînes intermédiaires. Écrire dans un `strings.Builder` partagé éviterait des allocations, si l'affichage devenait un goulot d'étranglement.
+
+## 6. Chaînes de caractères et expressions régulières (projet 11)
+
+Le test global du projet 11 (validation d'un nom d'utilisateur) a ajouté trois opérations sur les chaînes, avec des entrées choisies pour viser chaque piège.
+
+| Opération | Piège | Traduction retenue |
+|---|---|---|
+| `DString.length` | JavaScript compte des unités UTF-16 (`"é"` vaut 1, un emoji vaut 2). `len()` en Go compte des octets (`"é"` vaut 2, un emoji vaut 4) | `StringLength` parcourt les caractères et compte 2 au-delà du plan de base (code > 65535) |
+| `DString.test(value, /[0-9]/)` | Compiler la regex à chaque appel coûterait cher | `regexp.MustCompile` dans une variable de package : compilée une seule fois au chargement |
+| `DString.includes` | — | `strings.Contains` |
+
+Entrées testées : `"test"`, `"test1"`, `"te@st"`, `"élodie"` (6), `"😀ab"` (4), `"a1@b"` (le premier `if` doit l'emporter) et `""`. Sortie identique à `tsx` pour les 7, sans modifier le transpileur.
+
+**Limite** : le moteur Go (RE2) ne prend pas en charge toute la syntaxe JavaScript, par exemple les références arrière (`\1`) et les assertions avant ou arrière (`(?=…)`, `(?<=…)`). Une traduction complète devrait refuser ces expressions avec une erreur explicite, conformément au principe « refuser plutôt qu'approximer ».

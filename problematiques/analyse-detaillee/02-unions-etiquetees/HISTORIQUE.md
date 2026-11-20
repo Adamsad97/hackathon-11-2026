@@ -49,3 +49,25 @@ Pour le **rétrécissement**, la variable Go garde son type union : le transform
 - **Unions volumineuses** : au-delà d'un seuil (à mesurer par benchmark), stocker les gros membres par pointeur, ou partager un même champ entre membres de même représentation, pour que la taille s'approche du *maximum* des membres plutôt que de leur somme.
 - **Nommer les unions récurrentes** : émettre `type AddResult = Union2[…]` (alias, donc toujours assignable) pour améliorer la lisibilité du Go généré sans perdre la compatibilité.
 - **Généraliser la conversion entre unions** : la conversion d'une sous-union vers une union plus large, et le rétrécissement vers une sous-union, sont déjà générés (`createUnionConversion` : chaque membre source est replacé dans son membre cible). L'étape suivante serait de factoriser ces conversions en fonctions nommées et réutilisées, au lieu de les générer en ligne à chaque usage.
+
+## 6. Proposition de l'encadrant : `any` aux retours de fonction (19 novembre, mesurée)
+
+Après le test global (projet 11), l'encadrant a suggéré de renvoyer `any` aux frontières de fonction. Son argument : la performance se joue à la **déclaration** des données (une struct plutôt qu'une map), pas au type de retour. Cela simplifierait beaucoup le transpileur, au prix d'une assertion de type à l'utilisation. Le projet 11 montre bien le coût actuel : un seul `return checkedUsername` dans `main` produit quatre types d'union et trois conversions en ligne.
+
+Plutôt que de trancher par principe, nous avons mesuré la même fonction `add` avec quatre représentations ([`benchmark-any/`](benchmark-any/)) :
+
+| Cas | Union étiquetée | `any` + assertion | Interface | `any` + pointeur |
+|---|---|---|---|---|
+| Fonction non mise en ligne | **3,1 ns, 0 alloc** | 9,1 ns, 1 alloc | 11,2 ns, 1 alloc | 7,0 ns, 1 alloc |
+| Fonction appelée à travers une variable, comme dans le code généré (`callee := add`) | **3,2 ns, 0 alloc** | 9,0 ns, 1 alloc | — | — |
+| Petite fonction que Go met en ligne | 1,1 ns, 0 alloc | 1,0 ns, 0 alloc | — | — |
+
+Machine : Apple M4, macOS, Go 1.27. Une seconde mesure sur Intel Xeon 2,1 GHz (Linux, Go 1.24) donne les mêmes rapports (union environ 3 fois plus rapide hors mise en ligne), avec un écart plus marqué en faveur de `any` une fois mis en ligne (2 ns contre 10 ns). Reproduction : `go test -bench . -benchmem ./02-unions-etiquetees/benchmark-any`.
+
+**Lecture** :
+
+- l'encadrant a raison dans un cas : quand Go met la fonction en ligne, il voit le type réel et supprime l'allocation. `any` rattrape alors l'union (et la dépasse sur la machine Intel) ;
+- mais le code généré appelle beaucoup de fonctions à travers des variables (callbacks de `pipe`, `map`, `rightPipe`). Go ne peut alors pas les mettre en ligne, et `any` coûte une allocation et environ trois fois plus de temps ;
+- l'union étiquetée a un coût **stable et prévisible** dans tous les cas.
+
+**Décision** : garder l'union étiquetée. La lourdeur relevée par l'encadrant porte sur la **taille du code généré**, pas sur la performance : la réponse est de factoriser les conversions en fonctions nommées (§ 5, « générateur d'union »), pas de revenir à `any`.
