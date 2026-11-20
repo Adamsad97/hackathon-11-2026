@@ -22,11 +22,9 @@ export async function stringCallHandler(
 		return createFunctionValue(
 			node,
 			context,
-			(parameters) => Promise.resolve(
-				DArray.lengthEqual(parameters, arity)
-					? DEither.success({ result: createCall(DArray.map(parameters, ({ identifier }) => identifier)) })
-					: context.error(node, "string-function-value-arity-not-supported"),
-			),
+			async(parameters) => DArray.lengthEqual(parameters, arity)
+				? DEither.success({ result: createCall(DArray.map(parameters, ({ identifier }) => identifier)) })
+				: context.error(node, "string-function-value-arity-not-supported"),
 		);
 	}
 

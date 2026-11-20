@@ -1,6 +1,7 @@
 import * as DArray from "@duplojs/lang/array";
 import * as DCommon from "@duplojs/lang/common";
 import * as DEither from "@duplojs/lang/either";
+import * as DString from "@duplojs/lang/string";
 import type { GoAST } from "@go";
 import { TsAST } from "@typescript";
 import { NodeBuilderFlags, type Type } from "typescript/async";
@@ -9,14 +10,20 @@ import { typeTransformers } from ".";
 export type GoType = GoAST.Type | GoAST.TypeReference;
 
 export async function unwrapPromiseType(type: Type, context: BuildContext): Promise<Type> {
-	const typeString = await context.transpilation.typeChecker.typeToString(type);
-	if (typeString.startsWith("Promise<")) {
-		const typeArgs = await context.transpilation.typeChecker.getTypeArguments(type as any);
-		if (typeArgs && typeArgs[0]) {
-			return typeArgs[0];
-		}
+	// `Promise<T>` est une référence de type : le garde `isTypeReference` donne accès à ses arguments
+	// sans contourner le typage.
+	if (!type.isTypeReference()) {
+		return type;
 	}
-	return type;
+
+	const typeString = await context.transpilation.typeChecker.typeToString(type);
+	if (!DString.startsWith(typeString, "Promise<")) {
+		return type;
+	}
+
+	const [promisedType] = await context.transpilation.typeChecker.getTypeArguments(type);
+
+	return promisedType ?? type;
 }
 
 // Traduit un type calculé par le checker (inféré, rétréci ou contextuel) avec les mêmes

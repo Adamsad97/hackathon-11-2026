@@ -21,22 +21,20 @@ export async function successExpressionHandler(
 		return createFunctionValue(
 			node,
 			context,
-			([parameter]) => Promise.resolve(
-				parameter
-					? DEither.success({
-						result: GoAST.createCallExpression({
-							callee: GoAST.createInstantiationExpression({
-								target: GoAST.createSelectorExpression({
-									target: context.registerSharedDependency(eitherSuccessDependency.value),
-									identifier: successFunctionIdentifier,
-								}),
-								typeArguments: DCommon.cast([parameter.goType]),
+			async([parameter]) => parameter
+				? DEither.success({
+					result: GoAST.createCallExpression({
+						callee: GoAST.createInstantiationExpression({
+							target: GoAST.createSelectorExpression({
+								target: context.registerSharedDependency(eitherSuccessDependency.value),
+								identifier: successFunctionIdentifier,
 							}),
-							arguments: [parameter.identifier],
+							typeArguments: DCommon.cast([parameter.goType]),
 						}),
-					})
-					: context.error(node, "success-expects-one-argument"),
-			),
+						arguments: [parameter.identifier],
+					}),
+				})
+				: context.error(node, "success-expects-one-argument"),
 		);
 	}
 

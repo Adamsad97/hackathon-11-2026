@@ -34,8 +34,8 @@ export const functionTypeTransformer: Transformer<GoAST.FunctionType> = createTr
 		const functionArguments = await DCommon.asyncPipe(
 			node.parameters,
 			DArray.map(
-				(parameter) => !parameter.type || parameter.dotDotDotToken || parameter.questionToken
-					? Promise.resolve(context.error(parameter, "function-type-parameter-not-supported"))
+				async(parameter) => !parameter.type || parameter.dotDotDotToken || parameter.questionToken
+					? context.error(parameter, "function-type-parameter-not-supported")
 					: translate(parameter.type),
 			),
 			DCommon.promiseAll,

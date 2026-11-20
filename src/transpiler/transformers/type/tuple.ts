@@ -20,7 +20,7 @@ export const tupleTypeTransformer: Transformer<GoAST.ArrayType> = createTransfor
 		const elementTypes = await DCommon.asyncPipe(
 			node.elements,
 			DArray.map(
-				(element) => {
+				async(element) => {
 					const elementNode = TsAST.isNamedTupleMember(element)
 						? element.type
 						: element;
@@ -30,7 +30,7 @@ export const tupleTypeTransformer: Transformer<GoAST.ArrayType> = createTransfor
 						|| TsAST.isOptionalTypeNode(elementNode)
 						|| (TsAST.isNamedTupleMember(element) && (element.dotDotDotToken || element.questionToken))
 					) {
-						return Promise.resolve(context.error(element, "tuple-variable-length-not-supported"));
+						return context.error(element, "tuple-variable-length-not-supported");
 					}
 
 					return DCommon.asyncPipe(

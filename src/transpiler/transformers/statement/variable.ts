@@ -4,6 +4,7 @@ import { createTransformer, type Transformer } from "@transformer";
 import * as DArray from "@duplojs/lang/array";
 import * as DCommon from "@duplojs/lang/common";
 import * as DEither from "@duplojs/lang/either";
+import * as DGenerator from "@duplojs/lang/generator";
 import { expressionTransformers } from "../expression";
 import { convertToCheckerType, transformCheckerType } from "../type";
 
@@ -141,9 +142,11 @@ export const variableStatementTransformer: Transformer<
 		}
 
 		// Les ensembles du contexte ne sont modifiés qu'une fois toutes les déclarations traduites.
-		for (const packageDeclaration of declarations.packageDeclarations) {
-			context.file.declarations.add(packageDeclaration);
-		}
+		DCommon.pipe(
+			declarations.packageDeclarations,
+			DGenerator.map((packageDeclaration) => context.file.declarations.add(packageDeclaration)),
+			DGenerator.execute,
+		);
 
 		return context.success({
 			before: declarations.before,
