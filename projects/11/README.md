@@ -37,9 +37,9 @@ Dans les extraits, `sd` désigne le paquet `shard_dependencies`.
 - **Expression régulière compilée une seule fois** : `/[0-9]/` devient une variable de package, compilée au chargement du programme et non à chaque appel.
 
   ```go
-  var Generated_6 = regexp.MustCompile("[0-9]")
+  var compiledPattern1 = regexp.MustCompile("[0-9]")
   // …
-  if Generated_6.MatchString(Generated_4) {
+  if compiledPattern1.MatchString(username2) {
   ```
 
 - **Longueur fidèle à JavaScript** : en JavaScript, `length` compte des unités UTF-16, alors que `len()` en Go compte des octets (`"é"` vaut 1 en JavaScript et 2 octets en Go). Le helper `StringLength` parcourt les caractères et compte 2 pour ceux qui dépassent le plan de base, comme un emoji.
