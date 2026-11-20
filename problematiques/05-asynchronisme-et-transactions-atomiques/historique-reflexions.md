@@ -46,3 +46,23 @@ Sur des structures profondément imbriquées (`Promise<Either<Left, Success<[3]n
 
 3. **Atomicité et Évaluation Paresseuse :**  
    Si les éléments du groupe sont des fonctions (`signatures.length > 0`), le transpileur génère un appel `element()`. Dès qu'un retour porte l'étiquette d'erreur (`Tag == 0`), un `return` anticipé termine l'exécution de la transaction.
+
+---
+
+## 3. Confrontation d'Ingénierie : Approche avec `any` vs Approche sans `any`
+
+### Approche 1 : Slice Dynamique `[]any` (Universelle)
+* **Avantages :** Accepte une collection de N fonctions arbitraires de types de retour hétérogènes. `append()` est autorisé par le compilateur Go. Implémentation universelle simple dans le runtime.
+* **Compromis :** Allocation sur le tas (*Heap*), sollicitation du Garbage Collector, et perte du typage strict du tuple `[3]float64`.
+
+### Approche 2 : Tableau Fixe sur la Pile `[3]float64` (Spécialisée)
+* **Avantages :** Allocation de 24 octets stricts sur la pile, zéro ramasse-miettes, assignation par index direct `values[i] = ...`, et respect rigoureux du contrat de type DuploJS.
+* **Limites :** Code spécialisé généré sur-mesure pour la taille exacte $N=3$.
+
+### Benchmark Réel Mesuré (1 000 000 d'itérations) :
+* **DuploJS (Node.js / V8) :** 5 060.2 ms
+* **Go Approche 1 (Slice dynam. []any) :** 42.1 ms (120x plus rapide que Node.js)
+* **Go Approche 2 (Tableau fixe sur pile) :** 8.47 ms (5.0x plus rapide qu'avec any, 597x plus rapide que Node.js)
+
+### Conclusion :
+L'approche avec `any` est **universelle mais pas la plus rapide**. Elle constitue la solution idéale pour le code polymorphique, tandis que l'approche sans `any` sur la pile garantit la performance maximale pour les transactions critiques.
