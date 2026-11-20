@@ -104,7 +104,7 @@ export async function transformSourceFile(
 
 	return DEither.success({
 		file: createFile({
-			packageName: context.createSourceIdentifier(fileContext.currentFilePath),
+			packageName: context.createPackageIdentifier(fileContext.currentFilePath),
 			imports: DArray.concat(dependencyImports, DArray.from(fileContext.imports)),
 			declarations: DArray.concat(
 				content.declarations,

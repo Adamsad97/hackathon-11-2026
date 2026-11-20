@@ -14,14 +14,14 @@ Le calcul de `calculations` reprend les traductions du projet 08 : tuples `[3]fl
 
 ```go
 Sourced_transaction = func() Transaction {
-	Generated_15 := make([]float64, 0, len(Generated_13))
-	for _, Generated_14 := range Generated_13 {
-		if Generated_14.Tag == 0 {
-			return Transaction{Tag: 0, V0: Generated_14.V0}
+	successValues1 := make([]float64, 0, len(calculations1))
+	for _, groupItem1 := range calculations1 {
+		if groupItem1.Tag == 0 {
+			return Transaction{Tag: 0, V0: groupItem1.V0}
 		}
-		Generated_15 = append(Generated_15, Generated_14.V1.Value)
+		successValues1 = append(successValues1, groupItem1.V1.Value)
 	}
-	return Transaction{Tag: 1, V1: sd.EitherSuccessOf[[]float64](Generated_15)}
+	return Transaction{Tag: 1, V1: sd.EitherSuccessOf[[]float64](successValues1)}
 }()
 ```
 
@@ -34,11 +34,11 @@ Sourced_transaction = func() Transaction {
 ### Traiter les deux issues de la transaction
 
 ```go
-var Generated_22 sd.Union2[[]string, [1]string]
-if Generated_16.Tag == 1 {
-	Generated_22 = sd.Union2[[]string, [1]string]{Tag: 0, V0: Generated_21(Generated_16.V1.Value)}
+var whenIsRightOtherwiseResult1 sd.Union2[[]string, [1]string]
+if transaction1.Tag == 1 {
+	whenIsRightOtherwiseResult1 = sd.Union2[[]string, [1]string]{Tag: 0, V0: callback4(transaction1.V1.Value)}
 } else {
-	Generated_22 = sd.Union2[[]string, [1]string]{Tag: 1, V1: Generated_17()}
+	whenIsRightOtherwiseResult1 = sd.Union2[[]string, [1]string]{Tag: 1, V1: callback3()}
 }
 ```
 

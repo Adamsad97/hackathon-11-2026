@@ -77,7 +77,7 @@ export async function typeGuardExpressionHandler(
 	);
 
 	const inputVariable = GoAST.createShortVariableDeclarationStatement({
-		identifier: context.generateIdentifier(),
+		identifier: context.generateIdentifier("checkedResult"),
 		initializer: input.result,
 	});
 

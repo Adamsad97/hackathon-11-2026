@@ -111,9 +111,9 @@ export async function groupExpressionHandler(
 		return outputGoType;
 	}
 
-	const element = context.generateIdentifier();
-	const current = isGetter ? context.generateIdentifier() : element;
-	const values = context.generateIdentifier();
+	const element = context.generateIdentifier("groupItem");
+	const current = isGetter ? context.generateIdentifier("currentResult") : element;
+	const values = context.generateIdentifier("successValues");
 
 	const outputEffectiveType = await unwrapPromiseType(outputType, context);
 	const outputEither = await resolveEitherInput(outputEffectiveType, node, context);
@@ -168,7 +168,7 @@ export async function groupExpressionHandler(
 		}
 	}
 	const isTargetArray = DModeling.hasTagValue(valuesType, "[node][type]array");
-	const indexIdentifier = isTargetArray ? context.generateIdentifier() : undefined;
+	const indexIdentifier = isTargetArray ? context.generateIdentifier("index") : undefined;
 
 	// Un `return` anticipé par variante d'échec : l'échec devient le résultat de la transaction.
 	const leftReturns = await DCommon.asyncPipe(

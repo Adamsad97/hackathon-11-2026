@@ -23,26 +23,26 @@ Go ne possède pas de `Promise`, `async` ou `await` intégrés de la même faço
 
 ```go
 func Sourced_calculate(Sourced_one float64, Sourced_two float64, Sourced_divisor float64) (shard_dependencies.Union2[shard_dependencies.EitherLeft[float64], shard_dependencies.EitherSuccess[float64]]) {
-	Generated_3 := Sourced_add
-	Generated_7 := Generated_3(Sourced_one, Sourced_two)
-	Generated_11 := func(Sourced_value float64) (shard_dependencies.Union2[shard_dependencies.EitherLeft[float64], shard_dependencies.EitherSuccess[float64]]) {
+	add1 := Sourced_add
+	addResult1 := add1(Sourced_one, Sourced_two)
+	callback2 := func(Sourced_value float64) (shard_dependencies.Union2[shard_dependencies.EitherLeft[float64], shard_dependencies.EitherSuccess[float64]]) {
 		return Sourced_divide(Sourced_value, Sourced_divisor)
 	}
-	Generated_4 := func(Sourced_value float64) (shard_dependencies.EitherSuccess[float64]) {
+	callback1 := func(Sourced_value float64) (shard_dependencies.EitherSuccess[float64]) {
 		return shard_dependencies.EitherSuccessOf[float64](Sourced_value * 2)
 	}
 	return func() (shard_dependencies.Union2[shard_dependencies.EitherLeft[float64], shard_dependencies.EitherSuccess[float64]]) {
-		if Generated_7.Tag == 0 {
-			return Generated_7
+		if addResult1.Tag == 0 {
+			return addResult1
 		}
-		Generated_12 := Generated_11(Generated_7.V1.Value)
-		if Generated_12.Tag == 0 {
-			return Generated_12
+		stepResult1 := callback2(addResult1.V1.Value)
+		if stepResult1.Tag == 0 {
+			return stepResult1
 		}
-		Generated_13 := Generated_4(Generated_12.V1.Value)
+		stepResult2 := callback1(stepResult1.V1.Value)
 		return (shard_dependencies.Union2[shard_dependencies.EitherLeft[float64], shard_dependencies.EitherSuccess[float64]]{
 			Tag: 1,
-			V1: Generated_13,
+			V1: stepResult2,
 		})
 	}()
 }

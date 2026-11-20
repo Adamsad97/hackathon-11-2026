@@ -14,20 +14,20 @@ Dans les extraits, `sd` désigne le paquet `shard_dependencies`.
 
 ```go
 func Sourced_add(Sourced_one float64, Sourced_two float64) (shard_dependencies.Union2[shard_dependencies.EitherFail, shard_dependencies.EitherSuccess[float64]]) {
-	Generated_11 := Sourced_one
-	Generated_13 := (float64)(1)
-	Generated_14 := -(Generated_13)
-	if Generated_11 == Generated_14 {
+	one1 := Sourced_one
+	operand2 := (float64)(1)
+	right1 := -(operand2)
+	if one1 == right1 {
 		return (shard_dependencies.Union2[shard_dependencies.EitherFail, shard_dependencies.EitherSuccess[float64]]{
 			Tag: 0,
 			V0: shard_dependencies.EitherFailOf(),
 		})
 	}
-	Generated_12 := Sourced_one
-	Generated_15 := Sourced_two
+	one2 := Sourced_one
+	two1 := Sourced_two
 	return (shard_dependencies.Union2[shard_dependencies.EitherFail, shard_dependencies.EitherSuccess[float64]]{
 		Tag: 1,
-		V1: shard_dependencies.EitherSuccessOf[float64](Generated_12 + Generated_15),
+		V1: shard_dependencies.EitherSuccessOf[float64](one2 + two1),
 	})
 }
 ```

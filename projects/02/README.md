@@ -13,17 +13,17 @@ Dans `index.ts`, `DEither.whenIsRight` reçoit le résultat de `add` et la fonct
 Dans les extraits, `sd` désigne le paquet `shard_dependencies`.
 
 ```go
-Generated_5 := Sourced_result
-Generated_7 := func(Generated_6 float64) [1]float64 {
-	return [1]float64{Generated_6}
+result1 := Sourced_result
+coalescing1 := func(value1 float64) [1]float64 {
+	return [1]float64{value1}
 }
-var Generated_8 sd.Union2[[1]float64, sd.EitherFail]
-if Generated_5.Tag == 1 {
-	Generated_8 = sd.Union2[[1]float64, sd.EitherFail]{Tag: 0, V0: Generated_7(Generated_5.V1.Value)}
+var whenIsRightResult1 sd.Union2[[1]float64, sd.EitherFail]
+if result1.Tag == 1 {
+	whenIsRightResult1 = sd.Union2[[1]float64, sd.EitherFail]{Tag: 0, V0: coalescing1(result1.V1.Value)}
 } else {
-	Generated_8 = sd.Union2[[1]float64, sd.EitherFail]{Tag: 1, V1: Generated_5.V0}
+	whenIsRightResult1 = sd.Union2[[1]float64, sd.EitherFail]{Tag: 1, V1: result1.V0}
 }
-Sourced_newResult = Generated_8
+Sourced_newResult = whenIsRightResult1
 ```
 
 - **Ordre d’évaluation** : le résultat et la fonction sont d’abord évalués dans leur ordre d’apparition et stockés dans des variables temporaires. La fonction n’est appelée qu’ensuite, et seulement si elle est nécessaire.

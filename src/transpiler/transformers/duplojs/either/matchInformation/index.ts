@@ -311,7 +311,7 @@ export async function matchInformationExpressionHandler(
 		? curried.returnType
 		: callType;
 	const inputIdentifier = curried
-		? context.generateIdentifier()
+		? context.generateIdentifier("matchInput")
 		: input && DEither.unwrapRight(input).identifier;
 
 	if (!inputType || !inputIdentifier) {
@@ -332,7 +332,7 @@ export async function matchInformationExpressionHandler(
 		return outputGoType;
 	}
 
-	const result = context.generateIdentifier();
+	const result = context.generateIdentifier("matchResult");
 	const assign = (value: GoAST.Expression) => GoAST.createAssignmentStatement({
 		targets: DCommon.cast([result]),
 		values: DCommon.cast([value]),

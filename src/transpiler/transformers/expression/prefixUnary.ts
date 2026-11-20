@@ -6,6 +6,7 @@ import * as DCommon from "@duplojs/lang/common";
 import * as DEither from "@duplojs/lang/either";
 import { TypeFlags } from "typescript/async";
 import { expressionTransformers } from ".";
+import { getReadableName } from "../shared/readableName";
 
 // `-` sur un nombre suit IEEE 754 dans les deux langages (`-0` est conservé).
 // `!` n'est traduit que sur un booléen : sur une autre valeur il dépend de la vérité JavaScript.
@@ -39,7 +40,7 @@ export const prefixUnaryExpressionTransformer: Transformer<GoAST.UnaryExpression
 		// par l'arithmétique constante exacte de Go, qui ne connaît pas `-0` (de même que
 		// `0.1 + 0.2` y vaut exactement `0.3`).
 		const operandAssignment = GoAST.createShortVariableDeclarationStatement({
-			identifier: context.generateIdentifier(),
+			identifier: context.generateIdentifier(getReadableName(node.operand, "operand")),
 			initializer: operand.result,
 		});
 

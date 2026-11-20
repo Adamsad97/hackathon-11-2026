@@ -83,7 +83,7 @@ export const conditionalExpressionTransformer: Transformer<GoAST.Identifier> = c
 			return resultGoType;
 		}
 
-		const result = context.generateIdentifier();
+		const result = context.generateIdentifier("ternaryResult");
 
 		const whenTrue = await transformBranch(node.whenTrue, resultType, result, context);
 

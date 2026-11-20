@@ -83,7 +83,7 @@ export async function whenIsRightExpressionHandler(
 		? curried.returnType
 		: callType;
 	const input = curried
-		? context.generateIdentifier()
+		? context.generateIdentifier("eitherInput")
 		: identifiers[0];
 
 	if (!inputType || !input) {
@@ -239,7 +239,7 @@ export async function whenIsRightExpressionHandler(
 		});
 	}
 
-	const result = context.generateIdentifier();
+	const result = context.generateIdentifier("whenIsRightResult");
 
 	return context.success({
 		before: DArray.concat(

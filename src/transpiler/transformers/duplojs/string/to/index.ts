@@ -108,7 +108,7 @@ export async function toExpressionHandler(
 		return parameterGoType;
 	}
 
-	const parameter = context.generateIdentifier();
+	const parameter = context.generateIdentifier("value");
 	const conversion = createConversion(parameter, parameterType, node, context);
 
 	if (DEither.isLeft(conversion)) {

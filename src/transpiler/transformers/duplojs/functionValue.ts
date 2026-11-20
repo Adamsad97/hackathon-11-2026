@@ -60,7 +60,7 @@ export async function createFunctionValue(
 			async(parameterType) => DEither.rightPipe(
 				await transformCheckerType(parameterType, node, context),
 				(goType) => DEither.success<FunctionValueParameter>({
-					identifier: context.generateIdentifier(),
+					identifier: context.generateIdentifier("parameter"),
 					type: parameterType,
 					goType,
 				}),

@@ -219,7 +219,7 @@ export async function rightPipeExpressionHandler(
 
 			const { statements, forwarded } = DEither.unwrapRight(step);
 			const call = GoAST.createShortVariableDeclarationStatement({
-				identifier: context.generateIdentifier(),
+				identifier: context.generateIdentifier("stepResult"),
 				initializer: GoAST.createCallExpression({
 					callee: pipe,
 					arguments: [forwarded],

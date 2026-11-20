@@ -21,7 +21,7 @@ Les extraits sont simplifiés (conversions `(float64)(1)` abrégées en `1`). `s
 ### Traiter une collection de calculs
 
 ```go
-Sourced_calculations = sd.ArrayMap(Generated_2, Generated_12)
+Sourced_calculations = sd.ArrayMap(inputs1, callback2)
 
 func ArrayMap[T any, U any](array []T, theFunction func(_ T) U) []U {
 	output := make([]U, len(array))
@@ -39,11 +39,11 @@ func ArrayMap[T any, U any](array []T, theFunction func(_ T) U) []U {
 
   ```go
   return func() Result {
-  	if Generated_7.Tag == 0 {
-  		return Generated_7
+  	if divide1.Tag == 0 {
+  		return divide1
   	}
-  	Generated_11 := Generated_10(Generated_7.V1.Value)
-  	return Generated_11
+  	stepResult1 := callback1(divide1.V1.Value)
+  	return stepResult1
   }()
   ```
 
@@ -51,11 +51,11 @@ func ArrayMap[T any, U any](array []T, theFunction func(_ T) U) []U {
 - **`DEither.whenIsRightOtherwise`** (forme curryfiée) : une fonction littérale Go qui capture les deux callbacks et choisit la branche selon l’étiquette.
 
   ```go
-  Generated_18 := func(Generated_17 Result) string {
-  	if Generated_17.Tag == 1 {
-  		return Generated_16(Generated_17.V1.Value)
+  whenIsRightOtherwiseResult1 := func(eitherInput1 Result) string {
+  	if eitherInput1.Tag == 1 {
+  		return to1(eitherInput1.V1.Value)
   	} else {
-  		return Generated_14()
+  		return callback3()
   	}
   }
   ```
@@ -83,10 +83,10 @@ Sourced_inputs = [][3]float64{
 ### Déconstruire une entrée structurée dans un paramètre
 
 ```go
-func(Generated_1 [3]float64) Result {
-	Sourced_one := Generated_1[0]
-	Sourced_two := Generated_1[1]
-	Sourced_divisor := Generated_1[2]
+func(tupleParameter1 [3]float64) Result {
+	Sourced_one := tupleParameter1[0]
+	Sourced_two := tupleParameter1[1]
+	Sourced_divisor := tupleParameter1[2]
 	// ...
 }
 ```
@@ -99,11 +99,11 @@ func(Generated_1 [3]float64) Result {
 - **Ternaire** : Go n’a pas d’opérateur ternaire. `one < 0 ? one : two` devient une variable du type de l’expression, affectée dans un `if` / `else`. Seule la branche choisie est évaluée.
 
   ```go
-  var Generated_31 float64
-  if Generated_29 < Generated_30 {
-  	Generated_31 = Sourced_one
+  var ternaryResult1 float64
+  if one4 < right3 {
+  	ternaryResult1 = Sourced_one
   } else {
-  	Generated_31 = Sourced_two
+  	ternaryResult1 = Sourced_two
   }
   ```
 

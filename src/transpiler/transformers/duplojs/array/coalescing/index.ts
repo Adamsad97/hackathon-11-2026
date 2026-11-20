@@ -137,7 +137,7 @@ export async function coalescingExpressionHandler(
 		return returnGoType;
 	}
 
-	const parameter = context.generateIdentifier();
+	const parameter = context.generateIdentifier("value");
 
 	const coalesced = await createCoalescing({
 		value: parameter,

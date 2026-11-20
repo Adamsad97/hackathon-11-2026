@@ -21,15 +21,15 @@ Dans les extraits, `sd` désigne le paquet `shard_dependencies` et `Result` le t
 ```go
 func Sourced_add(Sourced_one float64, Sourced_two float64) Result {
 	// ... condition (voir plus bas)
-	if Generated_30 {
-		Generated_31 := "negative-operand"
-		// ... ternaire (voir plus bas) → Generated_34
-		Generated_35 := Generated_34
-		return Result{Tag: 0, V0: sd.EitherLeftOf[float64](Generated_31, Generated_35)}
+	if logicalResult1 {
+		value3 := "negative-operand"
+		// ... ternaire (voir plus bas) → ternaryResult1
+		value4 := ternaryResult1
+		return Result{Tag: 0, V0: sd.EitherLeftOf[float64](value3, value4)}
 	}
-	Generated_23 := Sourced_one
-	Generated_27 := Sourced_two
-	return Result{Tag: 1, V1: sd.EitherSuccessOf[float64](Generated_23 + Generated_27)}
+	one1 := Sourced_one
+	two1 := Sourced_two
+	return Result{Tag: 1, V1: sd.EitherSuccessOf[float64](one1 + two1)}
 }
 ```
 
@@ -37,32 +37,32 @@ func Sourced_add(Sourced_one float64, Sourced_two float64) Result {
 - **`||` avec court-circuit** : `one < 0 || two < 0` n’évalue le côté droit que si le gauche est faux. Les préparations du côté droit sont placées dans un `if !(…)`, ce qui conserve l’ordre et le court-circuit de JavaScript.
 
   ```go
-  Generated_26 := Generated_24 < Generated_25
-  Generated_30 := Generated_26
-  if !(Generated_30) {
-  	Generated_28 := Sourced_two
-  	Generated_29 := (float64)(0)
-  	Generated_30 = Generated_28 < Generated_29
+  left1 := one2 < right1
+  logicalResult1 := left1
+  if !(logicalResult1) {
+  	two2 := Sourced_two
+  	right2 := (float64)(0)
+  	logicalResult1 = two2 < right2
   }
   ```
 
 **Traitement selon l’information.** `DEither.matchInformation` devient une sélection sur l’étiquette :
 
 ```go
-Generated_20 := func() string {
+callback2 := func() string {
 	return "un opérande est négatif"
 }
-Generated_21 := func(Sourced_value float64) string {
+callback3 := func(Sourced_value float64) string {
 	return sd.NumberToString(Sourced_value)
 }
-var Generated_22 string
-if Generated_19.Tag == 0 {
-	Generated_22 = Generated_20()
+var matchResult1 string
+if result2.Tag == 0 {
+	matchResult1 = callback2()
 }
-if Generated_19.Tag == 1 {
-	Generated_22 = Generated_21(Generated_19.V1.Value)
+if result2.Tag == 1 {
+	matchResult1 = callback3(result2.V1.Value)
 }
-Sourced_message = Generated_22
+Sourced_message = matchResult1
 ```
 
 - **Pas de comparaison de chaîne ici** : le membre `Left` de `Result` n’a qu’une information possible (`"negative-operand"`), connue à la compilation grâce au type littéral. L’étiquette suffit donc à choisir le traitement. Une comparaison sur `Information` n’est générée que lorsque plusieurs informations partagent le même membre, comme dans le projet 07 (`"negative-operand"` et `"division-by-zero"`).
@@ -72,13 +72,13 @@ Sourced_message = Generated_22
 ### Traduire une expression ternaire
 
 ```go
-Generated_32 := Sourced_one
-Generated_33 := (float64)(0)
-var Generated_34 float64
-if Generated_32 < Generated_33 {
-	Generated_34 = Sourced_one
+one3 := Sourced_one
+right3 := (float64)(0)
+var ternaryResult1 float64
+if one3 < right3 {
+	ternaryResult1 = Sourced_one
 } else {
-	Generated_34 = Sourced_two
+	ternaryResult1 = Sourced_two
 }
 ```
 

@@ -118,7 +118,7 @@ export async function mapExpressionHandler(
 		return outputGoType;
 	}
 
-	const array = context.generateIdentifier();
+	const array = context.generateIdentifier("array");
 
 	return context.success({
 		before,

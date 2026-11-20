@@ -2,6 +2,7 @@ import { TsAST } from "@typescript";
 import { GoAST } from "@go";
 import { createTransformer, type Transformer } from "@transformer";
 import { expressionTransformers } from ".";
+import { getReadableName } from "../shared/readableName";
 import * as DCommon from "@duplojs/lang/common";
 import * as DEither from "@duplojs/lang/either";
 import * as DArray from "@duplojs/lang/array";
@@ -54,7 +55,7 @@ export const binaryExpressionTransformer: Transformer<GoAST.BinaryExpression | G
 		}
 
 		const leftAssignment = GoAST.createShortVariableDeclarationStatement({
-			identifier: context.generateIdentifier(),
+			identifier: context.generateIdentifier(getReadableName(node.left, "left")),
 			initializer: left.result,
 		});
 
@@ -83,7 +84,7 @@ export const binaryExpressionTransformer: Transformer<GoAST.BinaryExpression | G
 			}
 
 			const result = GoAST.createShortVariableDeclarationStatement({
-				identifier: context.generateIdentifier(),
+				identifier: context.generateIdentifier("logicalResult"),
 				initializer: leftAssignment.identifier,
 			});
 
@@ -117,7 +118,7 @@ export const binaryExpressionTransformer: Transformer<GoAST.BinaryExpression | G
 		}
 
 		const rightAssignment = GoAST.createShortVariableDeclarationStatement({
-			identifier: context.generateIdentifier(),
+			identifier: context.generateIdentifier(getReadableName(node.right, "right")),
 			initializer: right.result,
 		});
 

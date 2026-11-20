@@ -93,7 +93,7 @@ async function translateParameter(
 		return context.error(parameter, "object-binding-parameter-not-supported");
 	}
 
-	const source = context.generateIdentifier();
+	const source = context.generateIdentifier("tupleParameter");
 	const bindings = translateArrayBinding(parameter.name, source, context);
 
 	if (DEither.isLeft(bindings)) {

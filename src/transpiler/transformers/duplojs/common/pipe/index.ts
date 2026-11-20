@@ -50,7 +50,7 @@ export async function pipeExpressionHandler(
 		}),
 		({ element, lastValue, next }) => {
 			const step = GoAST.createShortVariableDeclarationStatement({
-				identifier: context.generateIdentifier(),
+				identifier: context.generateIdentifier("pipeStep"),
 				initializer: GoAST.createCallExpression({
 					callee: element,
 					arguments: [lastValue.current],

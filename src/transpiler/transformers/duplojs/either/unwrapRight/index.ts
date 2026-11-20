@@ -46,7 +46,7 @@ async function createUnwrapRight(params: CreateUnwrapRightParams) {
 		return outputGoType;
 	}
 
-	const result = context.generateIdentifier();
+	const result = context.generateIdentifier("unwrappedValue");
 	const branches = await DCommon.asyncPipe(
 		either.members,
 		DArray.map(

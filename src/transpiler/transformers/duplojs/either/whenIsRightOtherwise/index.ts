@@ -139,7 +139,7 @@ export async function whenIsRightOtherwiseExpressionHandler(
 		? curried.returnType
 		: callType;
 	const input = curried
-		? context.generateIdentifier()
+		? context.generateIdentifier("eitherInput")
 		: identifiers[0];
 
 	if (!inputType || !input) {
@@ -257,7 +257,7 @@ export async function whenIsRightOtherwiseExpressionHandler(
 		});
 	}
 
-	const result = context.generateIdentifier();
+	const result = context.generateIdentifier("whenIsRightOtherwiseResult");
 
 	return context.success({
 		before: DArray.concat(

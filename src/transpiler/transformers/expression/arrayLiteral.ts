@@ -109,7 +109,7 @@ export const arrayLiteralTransformer: Transformer<GoAST.ArrayLiteral | GoAST.Sli
 					}
 
 					const variable = GoAST.createShortVariableDeclarationStatement({
-						identifier: context.generateIdentifier(),
+						identifier: context.generateIdentifier("element"),
 						initializer: value,
 					});
 

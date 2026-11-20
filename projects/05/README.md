@@ -17,24 +17,24 @@ Dans les extraits, `sd` désigne le paquet `shard_dependencies` et `Result` l'un
 ### Transformer les différentes issues d’un résultat (`whenIsRightOtherwise`)
 
 ```go
-Generated_10 := func(Generated_8 float64) [1]float64 {
-	return [1]float64{Generated_8}
+coalescing1 := func(value1 float64) [1]float64 {
+	return [1]float64{value1}
 }
-Generated_9 := func() [1]float64 {
-	Generated_6 := (float64)(12)
-	Generated_7 := -(Generated_6)
-	return [1]float64{Generated_7}
+callback1 := func() [1]float64 {
+	operand1 := (float64)(12)
+	element1 := -(operand1)
+	return [1]float64{element1}
 }
-Generated_16 := func(Generated_13 Result) [1]float64 {
-	if Generated_13.Tag == 1 {
-		return Generated_10(Generated_13.V1.Value)
+whenIsRightOtherwiseResult1 := func(eitherInput1 Result) [1]float64 {
+	if eitherInput1.Tag == 1 {
+		return coalescing1(eitherInput1.V1.Value)
 	} else {
-		return Generated_9()
+		return callback1()
 	}
 }
 ```
 
-- **Aiguillage statique sans réflexion** : la forme curryfiée `DEither.whenIsRightOtherwise(theFunction, otherwiseFunction)` génère une closure Go `Generated_16` qui inspecte l'étiquette (`Tag == 1` pour le membre `Right`).
+- **Aiguillage statique sans réflexion** : la forme curryfiée `DEither.whenIsRightOtherwise(theFunction, otherwiseFunction)` génère une closure Go `whenIsRightOtherwiseResult1` qui inspecte l'étiquette (`Tag == 1` pour le membre `Right`).
 - **Unification du type de sortie** :
   - La branche succès applique `DArray.coalescing`, qui pour un `number` produit un tuple `[1]float64`.
   - La branche alternative `() => [-12]` produit également un tuple `[1]float64`.
@@ -43,20 +43,20 @@ Generated_16 := func(Generated_13 Result) [1]float64 {
 ### Transformer chaque élément d’une collection (`DArray.map`)
 
 ```go
-Generated_12 := func(Generated_11 float64) string {
-	return sd.NumberToString(Generated_11)
+to1 := func(value2 float64) string {
+	return sd.NumberToString(value2)
 }
-Generated_15 := func(Generated_14 [1]float64) ([]string) {
-	return sd.ArrayMap(Generated_14[:], Generated_12)
+mapResult1 := func(array1 [1]float64) ([]string) {
+	return sd.ArrayMap(array1[:], to1)
 }
-Generated_17 := Generated_16(Generated_5)
-Sourced_newResult = Generated_15(Generated_17)
+pipeStep1 := whenIsRightOtherwiseResult1(result1)
+Sourced_newResult = mapResult1(pipeStep1)
 sd.Print(Sourced_newResult, sd.InspectSlice(sd.InspectString))
 ```
 
-- **Parcours du tuple en slice (`[:]`)** : en Go, un tableau de taille fixe `[1]float64` ne peut pas être passé directement à une fonction attendant une slice dynamique `[]float64`. Le transpileur convertit le tableau en slice par découpage `Generated_14[:]`, sans copie mémoire.
+- **Parcours du tuple en slice (`[:]`)** : en Go, un tableau de taille fixe `[1]float64` ne peut pas être passé directement à une fonction attendant une slice dynamique `[]float64`. Le transpileur convertit le tableau en slice par découpage `array1[:]`, sans copie mémoire.
 - **Conversion de nombre en chaîne (`NumberToString`)** : `DString.to` est traduit par le helper générique `NumberToString` de `shard_dependencies`.
-- **Exécution séquentielle dans le pipe** : `DCommon.pipe` enchaîne l'évaluation des arguments puis compose les appels directs `Generated_15(Generated_16(Generated_5))`.
+- **Exécution séquentielle dans le pipe** : `DCommon.pipe` enchaîne l'évaluation des arguments puis compose les appels directs `mapResult1(whenIsRightOtherwiseResult1(result1))`.
 
 ## Résultats
 

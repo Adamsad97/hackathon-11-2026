@@ -5,6 +5,7 @@ import { GoAST } from "@go";
 import type { TsAST } from "@typescript";
 import type { BuildContext } from "../../context/build";
 import { expressionTransformers } from ".";
+import { getReadableName } from "../shared/readableName";
 
 export interface EvaluatedExpression {
 	readonly before: readonly GoAST.Statement[];
@@ -32,7 +33,7 @@ export async function evaluateToVariable(
 	}
 
 	const variable = GoAST.createShortVariableDeclarationStatement({
-		identifier: context.generateIdentifier(),
+		identifier: context.generateIdentifier(getReadableName(node, "value")),
 		initializer: expression.result,
 	});
 

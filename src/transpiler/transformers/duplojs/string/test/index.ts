@@ -70,7 +70,7 @@ export async function testExpressionHandler(
 		return string;
 	}
 
-	const compiled = context.generateIdentifier();
+	const compiled = context.generateIdentifier("compiledPattern");
 
 	context.file.imports.add(regexpImport.value);
 	context.file.declarations.add(

@@ -22,11 +22,11 @@ type Union2[T0 any, T1 any] = struct {
 }
 
 func Sourced_add(Sourced_one float64, Sourced_two float64) shard_dependencies.Union2[shard_dependencies.EitherFail, shard_dependencies.EitherSuccess[float64]] {
-	Generated_5 := Sourced_one
-	Generated_6 := Sourced_two
+	one1 := Sourced_one
+	two1 := Sourced_two
 	return shard_dependencies.Union2[shard_dependencies.EitherFail, shard_dependencies.EitherSuccess[float64]]{
 		Tag: 1,
-		V1:  shard_dependencies.EitherSuccessOf[float64](Generated_5 + Generated_6),
+		V1:  shard_dependencies.EitherSuccessOf[float64](one1 + two1),
 	}
 }
 ```
@@ -46,12 +46,12 @@ Une union TypeScript devient une **union étiquetée générique** `UnionN` : un
 var Sourced_result shard_dependencies.Union2[shard_dependencies.EitherFail, shard_dependencies.EitherSuccess[float64]]
 
 func init() {
-	Generated_1 := Sourced_001bw001bprojects001b01001badd001ats.Sourced_add
-	Generated_2 := (float64)(1)
-	Generated_3 := (float64)(2)
-	Sourced_result = Generated_1(Generated_2, Generated_3)
-	Generated_4 := Sourced_result
-	if Generated_4.Tag == 1 {
+	add1 := add_ts.Sourced_add
+	argument1 := (float64)(1)
+	argument2 := (float64)(2)
+	Sourced_result = add1(argument1, argument2)
+	checkedResult1 := Sourced_result
+	if checkedResult1.Tag == 1 {
 		shard_dependencies.Print(Sourced_result.V1, shard_dependencies.InspectEitherSuccess(shard_dependencies.InspectNumber))
 	}
 }
@@ -59,7 +59,7 @@ func init() {
 
 - **`isRight` résolu à la compilation** : `isRight` est un garde de type (`input is Extract<Input, Right>`). Le checker fournit le type retenu par ce prédicat ; chaque membre de l’union est classé une fois pour toutes (`isTypeAssignableTo`), et le test à l’exécution se réduit à `Tag == 1`, sans inspecter la valeur. Si aucun ou tous les membres sont retenus, la condition devient `false` ou `true` ; l’argument reste évalué (`_ = …`) pour conserver ses effets. La méthode ne dépend pas du nom de la fonction : elle s’appliquera à tout autre garde de type.
 - **Rétrécissement** : dans la branche, TypeScript considère `result` comme un `Success<number>`. La variable Go garde son type union : le transformer d’identifiant compare le type déclaré au type rétréci à cet endroit et lit directement le champ du membre (`Sourced_result.V1`).
-- **Branches** : la condition est évaluée une fois, ses préparations (`Generated_4 := …`) sont placées avant le `if`. Chaque branche est rendue comme un bloc Go, de sorte que les préparations d’une instruction restent dans sa branche et ne s’exécutent que si elle est choisie. `else` et `else if` sont pris en charge.
+- **Branches** : la condition est évaluée une fois, ses préparations (`checkedResult1 := …`) sont placées avant le `if`. Chaque branche est rendue comme un bloc Go, de sorte que les préparations d’une instruction restent dans sa branche et ne s’exécutent que si elle est choisie. `else` et `else if` sont pris en charge.
 - **Variables de module** : `const result` au niveau du fichier devient une variable de package affectée dans `init`. Elle reste accessible depuis les autres fichiers et n’est pas soumise à l’erreur Go « declared and not used ». Dans une fonction, une variable devient une déclaration typée locale.
 
 ### Afficher le résultat (`DCommon.print`)

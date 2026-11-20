@@ -13,15 +13,15 @@ Dans les extraits, `sd` désigne le paquet `shard_dependencies` et `Result` le t
 ### Enchaîner des opérations dépendantes
 
 ```go
-Generated_8 := func(Sourced_value float64) Result {
+callback1 := func(Sourced_value float64) Result {
 	return divide(Sourced_value, 0)
 }
 Sourced_result = func() Result {
-	if Generated_4.Tag == 0 {
-		return Generated_4
+	if addResult1.Tag == 0 {
+		return addResult1
 	}
-	Generated_9 := Generated_8(Generated_4.V1.Value)
-	return Generated_9
+	stepResult1 := callback1(addResult1.V1.Value)
+	return stepResult1
 }()
 ```
 
@@ -35,17 +35,17 @@ Sourced_result = func() Result {
 ### Traiter l’échec selon son information
 
 ```go
-var Generated_29 string
-if Generated_24.Tag == 0 {
-	if Generated_24.V0.Information == "negative-operand" {
-		Generated_29 = Generated_25()
+var matchResult1 string
+if result2.Tag == 0 {
+	if result2.V0.Information == "negative-operand" {
+		matchResult1 = callback3()
 	}
-	if Generated_24.V0.Information == "division-by-zero" {
-		Generated_29 = Generated_26()
+	if result2.V0.Information == "division-by-zero" {
+		matchResult1 = callback4()
 	}
 }
-if Generated_24.Tag == 1 {
-	Generated_29 = Generated_28(Generated_24.V1.Value)
+if result2.Tag == 1 {
+	matchResult1 = to2(result2.V1.Value)
 }
 ```
 
