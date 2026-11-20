@@ -1,76 +1,74 @@
-# Transpileur TypeScript (DuploJS) → Go · Problématiques étudiées
+# Découpage et Analyse des Problématiques de Transpilation TypeScript ➔ Go
+**Projet :** Transpileur Haute Performance pour le Framework DuploJS  
+**Hackathon DuploJS 2026**
 
-Ce dossier rassemble le **raisonnement** derrière le transpileur : un dossier par problématique. Chaque dossier contient :
+---
 
-- `README.md` : la problématique et la stratégie retenue, en bref ;
-- `HISTORIQUE.md` : les pistes explorées, les choix, leurs justifications et la vision à long terme ;
-- `exemples/` : du TypeScript et du Go **écrits à la main** pour illustrer les stratégies (pas de sortie brute du transpileur), exécutables, avec des benchmarks quand une décision dépend de la performance.
+## 1. Introduction & Démarche d'Ingénierie
 
-## Découpage
+L'objectif fondamental de ce projet est de transcompiler automatiquement du code TypeScript utilisant les abstractions monadiques de **DuploJS** (`DEither`, `DArray`, `DCommon`) vers du code **Go natif**, afin d'atteindre des performances d'exécution maximales (binaire compilé machine, zéro VM, zéro ramasse-miettes).
 
-Les exercices 01 à 10 ne sont pas 10 problèmes indépendants : chacun réutilise les précédents. Nous avons donc découpé par **problème de traduction**, et non par exercice.
+Conformément aux consignes de travail, **les exercices fournis ne sont pas traités comme des fins en soi, mais comme des échantillons révélateurs de problématiques d'ingénierie générales.** 
 
-| # | Problématique | Question centrale | Projets |
-|---|---|---|---|
-| [01](01-nombres-et-ordre-evaluation/) | Nombres et ordre d'évaluation | Comment garantir le même résultat numérique et le même ordre des effets ? | 01, tous |
-| [02](02-unions-etiquetees/) | Unions étiquetées | Comment représenter `A \| B` en Go sans `any` ? | 01, 04 |
-| [03](03-fonctions-en-valeur-et-pipe/) | Fonctions en valeur et `pipe` | Comment passer une fonction générique et composer sans runtime dynamique ? | 02, 03, 05 |
-| [04](04-expressions-sans-equivalent-go/) | Expressions sans équivalent Go | Ternaire, court-circuit, déstructuration : comment traduire une expression qui devient une instruction ? | 06, 08 |
-| [05](05-erreurs-identifiees/) | Erreurs identifiées | Comment garder l'information et le contexte d'un échec, puis le traiter par information ? | 06, 07 |
-| [06](06-composition-either/) | Composition d'`Either` | `whenIsRight`, `whenIsRightOtherwise`, `rightPipe` : comment s'arrêter au premier échec ? | 02, 03, 05, 07 |
-| [07](07-collections-tuples-et-tableaux/) | Collections | Tuples, tableaux, `map` : comment garder cardinalité, position et performance ? | 05, 08 |
-| [08](08-agregation-group/) | Agrégation `group` | Comment réunir N résultats en une transaction sans supposer la forme du conteneur ? | 09, 10 |
-| [09](09-asynchronisme/) | Asynchronisme | `async` / `await` sans `Promise` en Go : quand l'aplatissement est-il juste ? | 10 |
-| [10](10-affichage-fidele/) | Affichage fidèle | Comment reproduire `util.inspect` et `Number::toString` octet par octet ? | tous |
+Chaque dossier ci-dessous détaille une problématique transversale majeure avec son historique de réflexion, ses choix d'architecture et des exemples retravaillés manuellement.
 
-Ordre de lecture conseillé : 01 → 02 → 03 (fondations), puis les autres dans n'importe quel ordre.
+---
 
-## Principes transverses
+## 2. Sommaire des Problématiques Traitées
 
-Ces principes sont ressortis au fil des problématiques et guident toutes les décisions :
+Le projet a été découpé en **5 problématiques fondamentales** :
 
-1. **Exploiter le checker TypeScript au lieu de refaire son travail à l'exécution.** `isRight`, `coalescing`, `matchInformation`, `print` ou `pipe` sont résolus à la compilation. À l'exécution, il ne reste que des tests d'entiers et des appels directs.
-2. **Ni `any`, ni `reflect`, ni cast pour contourner le typage.** Les premières versions de `pipe`, `map` et `rightPipe` en utilisaient. Elles ont été remplacées : ≈ 10× plus rapide et des erreurs détectées par le compilateur Go (problématique 03).
-3. **Ordre d'évaluation explicite** : toute sous-expression non triviale reçoit un nom (contrat `{ before, result }`, problématique 01). C'est ce qui permet d'ajouter ternaire, court-circuit et pipes sans casser le reste.
-4. **Décider à partir du type, jamais de l'exemple.** Plusieurs premières versions passaient l'exemple « par hasard » (type commun dans `whenIsRightOtherwise`, slice dans `group`) et échouaient sur le projet suivant (problématiques 06 et 08).
-5. **Refuser plutôt qu'approximer** : une construction non prise en charge produit une erreur explicite (`function-value-without-expected-type`…), jamais du Go faux qui compile.
-6. **Prouver l'équivalence** : la sortie de chaque projet est identique octet par octet à celle de `tsx`. Nous ajoutons des variantes absentes des exemples, ainsi qu'un test différentiel aléatoire (problématique 10).
-7. **Un Go lisible** : variables et paquets nommés selon leur rôle (`callee`, `argument`, `checkedResult`, `add_ts`), runtime partagé limité aux fonctions utilisées.
+| N° | Dossier | Problématique Centrale | Concepts Clés & Stratégies |
+| :---: | :--- | :--- | :--- |
+| **01** | [`01-unions-et-discrimination/`](./01-unions-et-discrimination/) | **Représentation des Unions & Discrimination Statique** | `UnionN` étiquetée sur la pile, dédoublonnage canonique, test `Tag` $O(1)$ sans `reflect`. |
+| **02** | [`02-retours-multiples-et-placevalue/`](./02-retours-multiples-et-placevalue/) | **Retours Multiples Hétérogènes & Inférence Contextuelle** | Adaptateur universel `placeValue`, réconciliation statique de $N$ retours sans annotation explicite. |
+| **03** | [`03-dualite-memoire-tableaux-fixes-et-slices/`](./03-dualite-memoire-tableaux-fixes-et-slices/) | **Dualité Mémoire Tableaux Fixes `[N]T` vs Slices `[]T`** | Slicing zéro-copie (`[:]`), passage par valeur sur la pile, zéro allocation sur le tas (*Heap*). |
+| **04** | [`04-composition-fonctionnelle-et-court-circuit/`](./04-composition-fonctionnelle-et-court-circuit/) | **Élimination du Runtime & Court-Circuit Monadique** | Inlining statique des pipelines (`pipe`, `rightPipe`), IIFE Go auto-invoquées pour court-circuit anticipé. |
+| **05** | [`05-asynchronisme-et-transactions-atomiques/`](./05-asynchronisme-et-transactions-atomiques/) | **Transactions Asynchrones & Évaluation Paresseuse** | Aplatissement `Promise<T> ➔ T`, conteneurs polymorphes, levée de la troncature (`NoTruncation`). |
 
-## Mesures (benchmarks)
+---
 
-Machine : Intel i7-1165G7, Windows 11, Go 1.27. Reproduction : `cd problematiques && go test -bench . -benchmem ./...`
+## 3. Structure de Chaque Dossier de Problématique
 
-| Décision | Retenu | Écarté | Gain |
-|---|---|---|---|
-| Union (02) | struct étiquetée : 0 alloc | interface : 1 alloc/résultat | **≈ 8×** à la création, égal en lecture |
-| `pipe` (03) | appels directs | `any` + `reflect` | **≈ 10×**, 2 allocs contre 7 |
-| Échecs (05) | union + `matchInformation` | `(T, error)` | **≈ 3,5×** |
-| Tuples (07) | `[N]T` : 1 alloc | `[]T` : 1 001 allocs | **≈ 6×** |
-| `map` (07) | allocation unique | `append` successifs | **≈ 2,5×** |
-| `rightPipe` (06) | fonction anonyme | — | inlinée par le compilateur (vérifié avec `-gcflags=-m`) |
-| `Number::toString` (10) | réimplémentation ECMAScript | `fmt` / `strconv` | **0 différence** sur ~200 000 valeurs aléatoires |
+Chaque sous-dossier respecte rigoureusement la structure demandée :
+1. **`README.md`** : Court résumé exécutif posant le problème et la solution retenue.
+2. **`historique-reflexions.md`** : Analyse critique chronologique (pistes explorées, impasses de l'approche initiale V1, justifications de l'architecture V2).
+3. **`exemples/`** :
+   - `duplojs.ts` : Code DuploJS pur, propre et retravaillé manuellement.
+   - `go_equivalent.go` : Code Go idiomatique équivalent, sans bruit de mangling, compilable et optimisé.
 
-Nous avons aussi gardé les résultats défavorables : la lecture d'une union n'est **pas** plus rapide qu'un switch de type (02).
+---
 
-## Exécuter les exemples
+## 4. Résultats Empiriques & Benchmarks (Bonus)
 
-```bash
-# TypeScript (depuis la racine du dépôt)
-pnpm exec tsx problematiques/<dossier>/exemples/exemple.ts
-pnpm exec tsc -p problematiques/tsconfig.json   # vérification des types
+Toutes les stratégies ont été validées empiriquement par un protocole de mesure de haute précision comparant le runtime Node.js/V8 (exécutant DuploJS) au binaire natif Go généré :
 
-# Go (depuis problematiques/)
-cd problematiques
-go run ./<dossier>/exemples
-go vet ./...
-go test -bench . -benchmem ./...
+| Problématique | Projet Référence | DuploJS (Node.js) | Binaire Go Natif | Facteur d'Accélération |
+| :--- | :---: | :---: | :---: | :---: |
+| **01. Unions & Discrimination** | Projet 01 | 1531.7 ms | 22.1 ms | **~69x plus rapide** |
+| **02. Retours Multiples (placeValue)** | Projet 04 | 1311.8 ms | 36.9 ms | **~35x plus rapide** |
+| **03. Dualité Tableaux Fixes / Slices** | Projet 05 | 1692.6 ms | 35.3 ms | **~48x plus rapide** |
+| **04. Composition & Court-Circuit** | Projet 07 | 2052.0 ms | 19.0 ms | **~108x plus rapide** |
+| **05. Transaction Asynchrone** | Projet 10 | 1896.1 ms | 17.2 ms | **~110x plus rapide** |
+
+*Pour rejouer le benchmark en direct dans le terminal :*
+```powershell
+powershell -ExecutionPolicy Bypass -File soutenance/benchmark.ps1
 ```
 
-## Organisation de l'équipe
+---
 
-- **Découpage du travail par exercice**, sur des branches dédiées (par exemple `exo-01-08-09`), fusionnées régulièrement dans `main`. Les conflits ont été résolus en gardant la version qui produisait les sorties attendues pour **tous** les projets déjà résolus.
-- **Non-régression** : à chaque fusion, les projets précédents sont relancés et comparés à `tsx`.
-- **Documentation continue** : un README par projet (problématique, solution, résultats, limites), rédigé avec le code. Ce dossier en est la synthèse transverse.
-- **Commits conventionnels** (`feat`, `fix`, `refactor`, `docs`), avec un message qui explique le *pourquoi*.
-- **Revue et refactor communs** en fin de projet : suppression des `any`, des boucles natives et des `Promise.resolve` au profit de l'API DuploJS, et noms explicites dans le Go généré.
+## 5. Analyse détaillée par problème de traduction
+
+Le dossier [`analyse-detaillee/`](./analyse-detaillee/) reprend ces problématiques à une granularité plus fine (10 problèmes de traduction) et ajoute celles qui ne figurent pas dans la synthèse ci-dessus. Chaque stratégie retenue y est **mesurée contre la piste écartée**, en Go, avec des benchmarks exécutables (`go test -bench`).
+
+| Synthèse | Analyse détaillée correspondante |
+| :--- | :--- |
+| 01. Unions & Discrimination | [02 Unions étiquetées](./analyse-detaillee/02-unions-etiquetees/) |
+| 02. Retours Multiples (`placeValue`) | [02 Unions étiquetées](./analyse-detaillee/02-unions-etiquetees/) (§ 3) |
+| 03. Tableaux fixes / Slices | [07 Collections](./analyse-detaillee/07-collections-tuples-et-tableaux/) |
+| 04. Composition & Court-Circuit | [03 Fonctions en valeur et `pipe`](./analyse-detaillee/03-fonctions-en-valeur-et-pipe/), [06 Composition d'`Either`](./analyse-detaillee/06-composition-either/) |
+| 05. Transactions asynchrones | [08 Agrégation `group`](./analyse-detaillee/08-agregation-group/), [09 Asynchronisme](./analyse-detaillee/09-asynchronisme/) |
+| *(non couvert ci-dessus)* | [01 Nombres et ordre d'évaluation](./analyse-detaillee/01-nombres-et-ordre-evaluation/), [04 Expressions sans équivalent Go](./analyse-detaillee/04-expressions-sans-equivalent-go/), [05 Erreurs identifiées](./analyse-detaillee/05-erreurs-identifiees/), [10 Affichage fidèle](./analyse-detaillee/10-affichage-fidele/) |
+
+Les deux séries de mesures sont complémentaires : la section 4 montre le gain global de Go face à Node.js, l'analyse détaillée justifie chaque choix de traduction face à ses alternatives (struct étiquetée contre interface, appels directs contre `reflect`, `[N]T` contre `[]T`…).
