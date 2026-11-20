@@ -118,44 +118,6 @@ export async function groupExpressionHandler(
 	const outputEffectiveType = await unwrapPromiseType(outputType, context);
 	const outputEither = await resolveEitherInput(outputEffectiveType, node, context);
 
-	// =========================================================================
-	// [APPROCHE INITIALE NAÏVE V1 - LIMITÉE À L'EXEMPLE SIMPLE]
-	// L'approche initiale naïve supposait que group/asyncGroup produisait TOUJOURS
-	// une slice dynamique Go []T (avec make([]T, 0, len(group)) et append()).
-	//
-	// POURQUOI CETTE APPROCHE ÉTAIT DÉFAILLANTE (MAUVAIS TRAVAIL DE L'IA) :
-	// Dès qu'on manipule un tuple TypeScript de taille fixe [T1, T2, ...] (comme dans
-	// le projet 10 où l'entrée est [() => c1, () => c2, () => c3]), le TypeChecker
-	// infère un tuple fixe [number, number, number], traduit en Go par [3]float64.
-	// La V1 naïve provoquait deux erreurs critiques :
-	// 1) En Go, append() est strictement interdit sur un tableau de taille fixe [3]float64.
-	// 2) Le type EitherSuccess[[]float64] ne matchait pas EitherSuccess[[3]float64]
-	//    dans l'union cible, causant l'erreur "either-value-does-not-match-expected-type".
-	//
-	// CODE V1 (Mis de côté pour comparaison et soutenance) :
-	// /*
-	// const valuesType = GoAST.createSliceType({ elementType: valueGoType });
-	// const valuesInitStatement = GoAST.createShortVariableDeclarationStatement({
-	//     identifier: values,
-	//     initializer: GoAST.createCallExpression({
-	//         callee: GoAST.createIdentifier("make"),
-	//         typeArgument: valuesType,
-	//         arguments: [
-	//             GoAST.createIntegerLiteral({ value: 0n }),
-	//             GoAST.createCallExpression({ callee: GoAST.createIdentifier("len"), arguments: [group.identifier] }),
-	//         ],
-	//     }),
-	// });
-	// */
-	// =========================================================================
-	// [APPROCHE GÉNÉRALISÉE V2 - VISION ROBUSTE TOUS CAS DE FIGURE]
-	// La solution générale n'assume jamais la forme du conteneur : elle inspecte
-	// l'arborescence réelle du type cible dans l'union de sortie :
-	// - Si la cible est un tableau fixe [N]T : on alloue sur la pile `var values [N]T`
-	//   sans aucun surcoût de tas, et on affecte par index `values[index] = ...`.
-	// - Si la cible est une slice dynamique []T : on utilise make et append.
-	// Cette stratégie fonctionne de manière universelle : 2, 3 ou N éléments.
-	// =========================================================================
 	let valuesType: GoAST.Type = GoAST.createSliceType({ elementType: valueGoType });
 	if (DEither.isRight(outputEither)) {
 		const outRightMembers = filterSide(DEither.unwrapRight(outputEither), "right");

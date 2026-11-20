@@ -57,27 +57,6 @@ async function createBranchValue(params: CreateBranchValueParams) {
 	});
 }
 
-// =========================================================================
-// [APPROCHE INITIALE NAÏVE V1 - LIMITÉE À L'EXEMPLE PARTICULIER] :
-// Dans l'exercice 05, les deux branches (`coalescing` et `() => [-12]`) produisent
-// par hasard le même type de retour : un tuple d'un flottant `[1]float64`.
-// Une IA ou un développeur pressé aurait pu coder en dur que `whenIsRightOtherwise`
-// retourne toujours ce type concret particulier.
-//
-// POURQUOI CETTE APPROCHE ÉTAIT DÉFAILLANTE (MAUVAIS TRAVAIL) :
-// Si une branche retourne une chaîne et l'autre un nombre, ou si une branche retourne
-// un objet et l'autre un booléen, cette approche naïve échoue complètement.
-//
-// [APPROCHE GÉNÉRALISÉE V2 - VISION ROBUSTE] :
-// Le transpileur interroge le `TypeChecker` pour le type de retour global de l'expression.
-// Grâce au mécanisme universel `createBranchValue` et `placeValue` :
-// 1) Si les deux branches ont des types compatibles, le type concret commun est conservé.
-// 2) Si les types divergent, une union étiquetée `UnionN` est automatiquement générée,
-//    et chaque branche est insérée dans son membre correspondant (Tag 0, Tag 1, etc.).
-// 3) Couplé avec `DArray.map`, si le résultat est un tuple fixe, il est automatiquement
-//    découpé en slice `[:]` sans copie pour interopérer avec les helpers Go.
-// =========================================================================
-
 // `whenIsRightOtherwise(input, theFunction, otherwiseFunction)` : `theFunction` reçoit la valeur
 // d'un `Right`, `otherwiseFunction` reçoit les autres variantes. Les variantes sont classées à la
 // compilation ; le choix à l'exécution est un `if` sur l'étiquette de l'union.
